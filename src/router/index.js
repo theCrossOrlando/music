@@ -15,12 +15,14 @@ const router = createRouter({
     {
       path: '/lyrics',
       name: 'lyrics',
-      component: LyricsView
+      component: LyricsView,
+      meta: { requiresAuth: true }
     },
     {
       path: '/data',
       name: 'data',
-      component: DataView
+      component: DataView,
+      meta: { requiresAuth: true }
     }
   ]
 })
