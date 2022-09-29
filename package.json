@@ -1,0 +1,31 @@
+{
+  "name": "thecross-music",
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "import": "node import.js",
+    "report": "node report.js",
+    "build": "vite build",
+    "preview": "vite preview --port 4173"
+  },
+  "dependencies": {
+    "@firebase/app": "^0.7.30",
+    "@firebase/firestore": "^3.4.14",
+    "bulma": "^0.9.4",
+    "firebase": "^9.9.2",
+    "firebaseui": "^6.0.1",
+    "js-yaml": "^4.1.0",
+    "pinia": "^2.0.18",
+    "pinia-firestore": "^0.2.1",
+    "vue": "^3.2.37",
+    "vue-router": "^4.1.2",
+    "vuedraggable": "^4.1.0"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-vue": "^3.0.3",
+    "sass": "^1.54.4",
+    "sass-loader": "^13.0.2",
+    "vite": "^3.0.8"
+  }
+}
