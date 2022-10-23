@@ -56,12 +56,17 @@ export const useStore = defineStore('lyrics', {
     setCurrentUser() {
       return new Promise((resolve, reject) => {
         const unsubscribe = onAuthStateChanged(auth, user => {
-          this.authedUser = {
-            uid: user.uid,
-            email: user.email
+          if (user != null) {
+            this.authedUser = {
+              uid: user.uid,
+              email: user.email
+            }
+            resolve(user);
+          }
+          else {
+            resolve(false)
           }
           unsubscribe();
-          resolve(user);
         }, reject);
       })
     }

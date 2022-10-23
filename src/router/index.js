@@ -29,8 +29,16 @@ const router = createRouter({
 
 router.beforeEach(async (to, from) => {
   const store = useStore();
+  const currentUser = await store.setCurrentUser();
 
-  if (to.meta.requiresAuth && !await store.setCurrentUser()) {
+  if (currentUser && to.name != 'lyrics') {
+    return {
+      path: '/lyrics'
+    }
+  }
+
+  // Redirect to homepage if not logged in.
+  if (to.meta.requiresAuth && !currentUser) {
     return {
       path: '/',
     }
