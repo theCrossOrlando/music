@@ -87,8 +87,22 @@ function saveLyrics() {
     </table>
     <h1 class="is-size-1">Library</h1>
     <div class="control">
-      <input class="input" type="text" v-model="store.search.artist" placeholder="Search artist">
-      <input class="input" type="text" v-model="store.search.song" placeholder="Search song">
+      <div class="field">
+        <p class="control has-icons-left">
+          <input class="input" type="text" v-model="store.search.artist" placeholder="Search artist">
+          <span class="icon is-small is-left">
+            <i class="fas fa-user"></i>
+          </span>
+        </p>
+      </div>
+      <div class="field">
+        <p class="control has-icons-left">
+          <input class="input" type="text" v-model="store.search.song" placeholder="Search song">
+          <span class="icon is-small is-left">
+            <i class="fas fa-music"></i>
+          </span>
+        </p>
+      </div>
     </div>
     <table class="table is-striped is-hoverable is-fullwidth">
       <thead>
