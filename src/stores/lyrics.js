@@ -21,6 +21,10 @@ export const useStore = defineStore('lyrics', {
     inactiveLyrics: [],
     activeLyrics: [],
     isLoading: false,
+    search: {
+      artist: '',
+      song: '',
+    }
   }),
   actions: {
     async init() {
@@ -74,6 +78,26 @@ export const useStore = defineStore('lyrics', {
   getters: {
     getLyric: (state) => {
       return (id) => state.lyrics.find(l => l.__id == id)
-    }
+    },
+    filteredLyrics: (state) => {
+      if (state.search.artist === '' && state.search.song === '') {
+        return state.inactiveLyrics
+      }
+
+      return state.inactiveLyrics.filter(l => {
+        let artistIncluded = true
+        let songIncluded = true
+
+        if (state.search.artist !== '') {
+          artistIncluded = l.artist.toLowerCase().includes(state.search.artist)
+        }
+
+        if (state.search.song !== '') {
+          songIncluded = l.song.toLowerCase().includes(state.search.song)
+        }
+
+        return artistIncluded && songIncluded
+      })
+    },
   }
 })

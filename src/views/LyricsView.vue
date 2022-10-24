@@ -75,6 +75,10 @@ function saveLyrics() {
       </draggable>
     </table>
     <h1 class="is-size-1">Library</h1>
+    <div class="control">
+      <input class="input" type="text" v-model="store.search.artist" placeholder="Search artist">
+      <input class="input" type="text" v-model="store.search.song" placeholder="Search song">
+    </div>
     <table class="table is-striped is-hoverable is-fullwidth">
       <thead>
         <tr>
@@ -84,7 +88,7 @@ function saveLyrics() {
         </tr>
       </thead>
       <tbody>
-        <tr v-for="lyric in store.inactiveLyrics" v-bind:key="lyric.id">
+        <tr v-for="lyric in store.filteredLyrics" v-bind:key="lyric.id">
           <td>{{ lyric.artist }}</td>
           <td>{{ lyric.song }}</td>
           <td class="has-text-right">
