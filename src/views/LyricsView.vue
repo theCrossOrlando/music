@@ -67,7 +67,7 @@ function saveLyrics() {
             <td scope="row">{{ element.artist }}</td>
             <td>{{ element.song }}</td>
             <td class="has-text-right">
-              <div class="dropdown" @click="e => e.currentTarget.classList.toggle('is-active')">
+              <div class="dropdown is-right" @click="e => e.currentTarget.classList.toggle('is-active')">
                 <div class="dropdown-trigger">
                   <button class="button" aria-haspopup="true" aria-controls="dropdown-menu">
                     <i class="fa-solid fa-ellipsis"></i>
@@ -117,7 +117,7 @@ function saveLyrics() {
           <td>{{ lyric.artist }}</td>
           <td>{{ lyric.song }}</td>
           <td class="has-text-right">
-            <div class="dropdown" @click="e => e.currentTarget.classList.toggle('is-active')">
+            <div class="dropdown is-right" @click="e => e.currentTarget.classList.toggle('is-active')">
               <div class="dropdown-trigger">
                 <button class="button" aria-haspopup="true" aria-controls="dropdown-menu">
                   <i class="fa-solid fa-ellipsis"></i>
