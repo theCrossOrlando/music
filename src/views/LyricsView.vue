@@ -67,8 +67,19 @@ function saveLyrics() {
             <td scope="row">{{ element.artist }}</td>
             <td>{{ element.song }}</td>
             <td class="has-text-right">
-              <button class="button" v-on:click="displayModal(element.__id)">Edit</button>
-              <button class="button is-primary" @click="store.disable(element.__id)">Remove</button>
+              <div class="dropdown" @click="e => e.currentTarget.classList.toggle('is-active')">
+                <div class="dropdown-trigger">
+                  <button class="button" aria-haspopup="true" aria-controls="dropdown-menu">
+                    <i class="fa-solid fa-ellipsis"></i>
+                  </button>
+                </div>
+                <div class="dropdown-menu" id="dropdown-menu" role="menu">
+                  <div class="dropdown-content">
+                    <a class="dropdown-item" @click="displayModal(element.__id)">Edit</a>
+                    <a class="dropdown-item" @click="store.disable(element.__id)">Remove</a>
+                  </div>
+                </div>
+              </div>
             </td>
           </tr>
         </template>
@@ -92,23 +103,22 @@ function saveLyrics() {
           <td>{{ lyric.artist }}</td>
           <td>{{ lyric.song }}</td>
           <td class="has-text-right">
-            <button class="button" v-on:click="displayModal(lyric.__id)">Edit</button>
-            <button class="button is-primary" @click="store.enable(lyric.__id)">Add</button>
+            <div class="dropdown" @click="e => e.currentTarget.classList.toggle('is-active')">
+              <div class="dropdown-trigger">
+                <button class="button" aria-haspopup="true" aria-controls="dropdown-menu">
+                  <i class="fa-solid fa-ellipsis"></i>
+                </button>
+              </div>
+              <div class="dropdown-menu" id="dropdown-menu" role="menu">
+                <div class="dropdown-content">
+                  <a class="dropdown-item" @click="displayModal(element.__id)">Edit</a>
+                  <a class="dropdown-item" @click="store.enable(element.__id)">Remove</a>
+                </div>
+              </div>
+            </div>
           </td>
         </tr>
       </tbody>
     </table>
   </main>
 </template>
-
-<style scoped>
-a {
-  font-size: 80px;
-  height: 100px;
-  width: 100%;
-}
-
-img {
-  width: 100%;
-}
-</style>
