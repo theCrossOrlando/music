@@ -70,7 +70,7 @@ function saveLyrics() {
               <div class="dropdown is-right" @click="e => e.currentTarget.classList.toggle('is-active')">
                 <div class="dropdown-trigger">
                   <button class="button" aria-haspopup="true" aria-controls="dropdown-menu">
-                    <i class="fa-solid fa-ellipsis"></i>
+                    <font-awesome-icon icon="ellipsis" />
                   </button>
                 </div>
                 <div class="dropdown-menu" id="dropdown-menu" role="menu">
@@ -91,7 +91,7 @@ function saveLyrics() {
         <p class="control has-icons-left">
           <input class="input" type="text" v-model="store.search.artist" placeholder="Search artist">
           <span class="icon is-small is-left">
-            <i class="fas fa-user"></i>
+            <font-awesome-icon icon="user" />
           </span>
         </p>
       </div>
@@ -99,7 +99,7 @@ function saveLyrics() {
         <p class="control has-icons-left">
           <input class="input" type="text" v-model="store.search.song" placeholder="Search song">
           <span class="icon is-small is-left">
-            <i class="fas fa-music"></i>
+            <font-awesome-icon icon="music" />
           </span>
         </p>
       </div>
@@ -120,7 +120,7 @@ function saveLyrics() {
             <div class="dropdown is-right" @click="e => e.currentTarget.classList.toggle('is-active')">
               <div class="dropdown-trigger">
                 <button class="button" aria-haspopup="true" aria-controls="dropdown-menu">
-                  <i class="fa-solid fa-ellipsis"></i>
+                  <font-awesome-icon icon="ellipsis" />
                 </button>
               </div>
               <div class="dropdown-menu" id="dropdown-menu" role="menu">
