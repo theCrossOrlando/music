@@ -12,6 +12,7 @@
   "dependencies": {
     "@firebase/app": "^0.7.30",
     "@firebase/firestore": "^3.4.14",
+    "@fortawesome/fontawesome-free": "^6.2.0",
     "bulma": "^0.9.4",
     "firebase": "^9.9.2",
     "firebaseui": "^6.0.1",
