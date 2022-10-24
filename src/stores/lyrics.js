@@ -32,6 +32,11 @@ export const useStore = defineStore('lyrics', {
       await bind(this, 'lyrics', allLyrics)
       await bind(this, 'inactiveLyrics', inActiveLyrics)
       await bind(this, 'activeLyrics', activeLyrics)
+      this.inactiveLyrics.sort((a, b) => {
+        if (a.artist > b.artist) return 1
+        if (a.artist < b.artist) return -1
+        return 0
+      })
       this.isLoading = false
     },
     enable(id) {
