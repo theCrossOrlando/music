@@ -19,20 +19,36 @@ onBeforeUnmount(() => authListener())
 
 const edit = ref({
   id: '',
+  artist: '',
+  song: '',
   lyrics: '',
+  enabled: false
 })
 const showModal = ref(false)
 
 function displayModal(id) {
-  showModal.value = true
   edit.value = {
-    id: id,
-    lyrics: store.getLyric(id).lyrics
+    artist: '',
+    song: '',
+    lyrics: '',
+    enabled: false
+  }
+  showModal.value = true
+
+  if (id) {
+    const editLyric = store.getLyric(id)
+    edit.value = {
+      id: id,
+      artist: editLyric.artist,
+      song: editLyric.song,
+      lyrics: editLyric.lyrics,
+      enabled: editLyric.enabled
+    }
   }
 }
 
-function saveLyrics() {
-  store.saveLyrics(edit.value.id, edit.value.lyrics)
+function updateLyrics() {
+  store.updateLyrics(edit.value)
   showModal.value = false
 }
 </script>
@@ -46,6 +62,14 @@ function saveLyrics() {
         <button class="button is-primary" @click="saveLyrics">Save</button>
       </div>
       <button class="modal-close is-large" @click="showModal = false" aria-label="close"></button>
+    </div>
+    <div class="level">
+      <div class="level-left">&nbsp;</div>
+      <div class="level-right">
+        <button class="button">
+          <font-awesome-icon icon="plus" @click="displayModal()" />
+        </button>
+      </div>
     </div>
     <h1 class="is-size-1">Active Lyrics</h1>
     <table class="table is-striped is-hoverable is-fullwidth">

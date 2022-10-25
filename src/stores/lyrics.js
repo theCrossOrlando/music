@@ -1,6 +1,6 @@
 import { defineStore, storeToRefs } from 'pinia'
 import firebase from '../firebaseInit.js'
-import { query, collection, getFirestore, doc, updateDoc, where, writeBatch, deleteField } from '@firebase/firestore'
+import { query, collection, getFirestore, doc, updateDoc, where, writeBatch, deleteField, addDoc } from '@firebase/firestore'
 import { getAuth, onAuthStateChanged } from 'firebase/auth';
 import { bind } from "pinia-firestore"
 
@@ -51,8 +51,15 @@ export const useStore = defineStore('lyrics', {
         order: deleteField()
       })
     },
-    async saveLyrics(id, lyrics) {
-      updateDoc(doc(db, `lyrics/${id}`), { lyrics: lyrics })
+    async updateLyrics(data) {
+      const { id, ...lyrics } = data
+      if (id) {
+        updateDoc(doc(db, `lyrics/${id}`), lyrics)
+      }
+      else {
+        const docRef = await addDoc(colRefLyrics, lyrics)
+        console.log("Document written with ID: ", docRef.id)
+      }
     },
     async saveOrder(evt) {
       const batch = writeBatch(db)
