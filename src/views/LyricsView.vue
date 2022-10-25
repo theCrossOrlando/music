@@ -126,7 +126,7 @@ function saveLyrics() {
               <div class="dropdown-menu" id="dropdown-menu" role="menu">
                 <div class="dropdown-content">
                   <a class="dropdown-item" @click="displayModal(element.__id)">Edit</a>
-                  <a class="dropdown-item" @click="store.enable(element.__id)">Remove</a>
+                  <a class="dropdown-item" @click="store.enable(element.__id)">Add</a>
                 </div>
               </div>
             </div>
