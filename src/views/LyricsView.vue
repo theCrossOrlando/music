@@ -58,8 +58,12 @@ function updateLyrics() {
     <div :class="['modal', { 'is-active': showModal }]">
       <div class="modal-background"></div>
       <div class="modal-content">
-        <textarea class="textarea" v-model="edit.lyrics" placeholder="Insert lyrics here" rows="20"></textarea>
-        <button class="button is-primary" @click="saveLyrics">Save</button>
+        <div class="container box p-6 has-background-light">
+          <input type="text" class="input m-2" v-model="edit.artist" placeholder="Artist">
+          <input type="text" class="input m-2" v-model="edit.song" placeholder="Song title">
+          <textarea class="textarea m-2" v-model="edit.lyrics" placeholder="Insert lyrics here" rows="20"></textarea>
+          <button class="button is-primary m-2" @click="updateLyrics">Save</button>
+        </div>
       </div>
       <button class="modal-close is-large" @click="showModal = false" aria-label="close"></button>
     </div>
