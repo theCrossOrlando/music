@@ -104,7 +104,7 @@ function updateLyrics() {
                 <div class="dropdown-menu" id="dropdown-menu" role="menu">
                   <div class="dropdown-content">
                     <a class="dropdown-item" @click="displayModal(element.__id)">Edit</a>
-                    <a class="dropdown-item" @click="store.disable(element.__id)">Remove</a>
+                    <a class="dropdown-item" @click="store.disable(element.__id)">Disable</a>
                   </div>
                 </div>
               </div>
@@ -154,7 +154,7 @@ function updateLyrics() {
               <div class="dropdown-menu" id="dropdown-menu" role="menu">
                 <div class="dropdown-content">
                   <a class="dropdown-item" @click="displayModal(lyric.__id)">Edit</a>
-                  <a class="dropdown-item" @click="store.enable(lyric.__id)">Add</a>
+                  <a class="dropdown-item" @click="store.enable(lyric.__id)">Enable</a>
                 </div>
               </div>
             </div>
