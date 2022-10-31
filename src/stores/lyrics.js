@@ -101,11 +101,11 @@ export const useStore = defineStore('lyrics', {
         let songIncluded = true
 
         if (state.search.artist !== '') {
-          artistIncluded = l.artist.toLowerCase().includes(state.search.artist)
+          artistIncluded = l.artist.toLowerCase().includes(state.search.artist.toLowerCase())
         }
 
         if (state.search.song !== '') {
-          songIncluded = l.song.toLowerCase().includes(state.search.song)
+          songIncluded = l.song.toLowerCase().includes(state.search.song.toLowerCase())
         }
 
         return artistIncluded && songIncluded
