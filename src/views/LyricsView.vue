@@ -117,17 +117,17 @@ function updateLyrics() {
     <div class="control">
       <div class="field">
         <p class="control has-icons-left">
-          <input class="input" type="text" v-model="store.search.artist" placeholder="Search artist">
+          <input class="input" type="text" v-model="store.search.song" placeholder="Search song">
           <span class="icon is-small is-left">
-            <font-awesome-icon icon="user" />
+            <font-awesome-icon icon="music" />
           </span>
         </p>
       </div>
       <div class="field">
         <p class="control has-icons-left">
-          <input class="input" type="text" v-model="store.search.song" placeholder="Search song">
+          <input class="input" type="text" v-model="store.search.artist" placeholder="Search artist">
           <span class="icon is-small is-left">
-            <font-awesome-icon icon="music" />
+            <font-awesome-icon icon="user" />
           </span>
         </p>
       </div>
