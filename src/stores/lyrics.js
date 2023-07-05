@@ -7,6 +7,8 @@ import { bind } from "pinia-firestore"
 const db = getFirestore(firebase)
 const auth = getAuth(firebase)
 const colRefLyrics = collection(db, 'lyrics')
+const colRefScripture = collection(db, 'scripture')
+const scripture = query(colRefScripture)
 const allLyrics = query(colRefLyrics)
 const activeLyrics = query(colRefLyrics, where("enabled", "==", true))
 const inActiveLyrics = query(colRefLyrics, where("enabled", "==", false))
@@ -24,12 +26,14 @@ export const useStore = defineStore('lyrics', {
     search: {
       artist: '',
       song: '',
-    }
+    },
+    scripture: []
   }),
   actions: {
     async init() {
       this.isLoading = true
       await bind(this, 'lyrics', allLyrics)
+      await bind(this, 'scripture', scripture)
       await bind(this, 'inactiveLyrics', inActiveLyrics)
       await bind(this, 'activeLyrics', activeLyrics)
       this.inactiveLyrics.sort((a, b) => {
@@ -50,6 +54,9 @@ export const useStore = defineStore('lyrics', {
         enabled: false,
         order: deleteField()
       })
+    },
+    async updateScripture(id) {
+      updateDoc(doc(db, `scripture/sunday`), { verse: this.scripture[id].verse })
     },
     async updateLyrics(data) {
       const { id, ...lyrics } = data

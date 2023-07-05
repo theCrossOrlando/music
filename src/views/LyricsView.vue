@@ -55,6 +55,20 @@ function updateLyrics() {
 
 <template>
   <main>
+    <h1 class="is-size-1">Scripture</h1>
+    <div class="container" v-for="(scripture, __id) in store.scripture" v-bind:key="__id">
+      <div class="field has-addons">
+        <div class="control has-icons-left">
+          <input type="text" class="input" v-model="scripture.verse" placeholder="Scripture">
+          <span class="icon is-medium is-left">
+            <i class="fa fa-futbol-o"></i>
+          </span>
+        </div>
+        <div class="control">
+          <a class="button is-primary" @click="store.updateScripture(__id)">Update</a>
+        </div>
+      </div>
+    </div>
     <div :class="['modal', { 'is-active': showModal }]">
       <div class="modal-background"></div>
       <div class="modal-content">
