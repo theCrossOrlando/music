@@ -2,7 +2,7 @@ import { initializeApp } from "@firebase/app"
 
 const firebaseConfig = {
   apiKey: "AIzaSyAb3tuVXmuobrVZr_n1JuKYoapmocCx078",
-  authDomain: "thecross-music.firebaseapp.com",
+  authDomain: "thecross-music.web.app",
   projectId: "thecross-music",
   storageBucket: "thecross-music.appspot.com",
   messagingSenderId: "318539621394",
