@@ -59,13 +59,23 @@ export const useStore = defineStore('lyrics', {
       updateDoc(doc(db, `scripture/sunday`), { verse: this.scripture[id].verse })
     },
     async updateLyrics(data) {
-      const { id, ...lyrics } = data
+      const { id, ...rest } = data
+      // Trim every field so a stray space never becomes a blank artist on the
+      // public page, and require the fields the lyrics page actually renders.
+      const lyrics = {
+        ...rest,
+        song: (rest.song ?? '').trim(),
+        artist: (rest.artist ?? '').trim(),
+        lyrics: (rest.lyrics ?? '').trim(),
+      }
+      if (!lyrics.song || !lyrics.lyrics) {
+        throw new Error('Song title and lyrics are both required.')
+      }
       if (id) {
-        updateDoc(doc(db, `lyrics/${id}`), lyrics)
+        await updateDoc(doc(db, `lyrics/${id}`), lyrics)
       }
       else {
-        const docRef = await addDoc(colRefLyrics, lyrics)
-        console.log("Document written with ID: ", docRef.id)
+        await addDoc(colRefLyrics, lyrics)
       }
     },
     async saveOrder() {

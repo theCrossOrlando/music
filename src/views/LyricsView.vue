@@ -14,8 +14,10 @@ const edit = ref({
   enabled: false
 })
 const showModal = ref(false)
+const formError = ref('')
 
 function displayModal(id) {
+  formError.value = ''
   edit.value = {
     artist: '',
     song: '',
@@ -36,9 +38,14 @@ function displayModal(id) {
   }
 }
 
-function updateLyrics() {
-  store.updateLyrics(edit.value)
-  showModal.value = false
+async function updateLyrics() {
+  formError.value = ''
+  try {
+    await store.updateLyrics(edit.value)
+    showModal.value = false
+  } catch (error) {
+    formError.value = error.message
+  }
 }
 </script>
 
@@ -65,6 +72,7 @@ function updateLyrics() {
           <input type="text" class="input m-2" v-model="edit.artist" placeholder="Artist">
           <input type="text" class="input m-2" v-model="edit.song" placeholder="Song title">
           <textarea class="textarea m-2" v-model="edit.lyrics" placeholder="Insert lyrics here" rows="20"></textarea>
+          <p v-if="formError" class="help is-danger m-2">{{ formError }}</p>
           <button class="button is-primary m-2" @click="updateLyrics">Save</button>
         </div>
       </div>
