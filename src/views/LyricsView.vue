@@ -1,21 +1,10 @@
 <script setup>
-import { onBeforeUnmount, ref } from "vue";
-import firebase from '../firebaseInit.js'
-import { getAuth, onAuthStateChanged } from 'firebase/auth';
-import "firebaseui/dist/firebaseui.css"
+import { ref } from "vue";
 import { useStore } from '@/stores/lyrics';
 import draggable from 'vuedraggable'
 
 const store = useStore();
 store.init()
-
-const auth = getAuth(firebase)
-
-const loggedinUser = ref(null)
-
-const authListener = onAuthStateChanged(auth, user => loggedinUser.value = user)
-
-onBeforeUnmount(() => authListener())
 
 const edit = ref({
   id: '',
@@ -61,7 +50,7 @@ function updateLyrics() {
         <div class="control has-icons-left">
           <input type="text" class="input" v-model="scripture.verse" placeholder="Scripture">
           <span class="icon is-medium is-left">
-            <i class="fa fa-futbol-o"></i>
+            <font-awesome-icon icon="book" />
           </span>
         </div>
         <div class="control">
@@ -111,11 +100,11 @@ function updateLyrics() {
             <td class="has-text-right">
               <div class="dropdown is-right" @click="e => e.currentTarget.classList.toggle('is-active')">
                 <div class="dropdown-trigger">
-                  <button class="button" aria-haspopup="true" aria-controls="dropdown-menu">
+                  <button class="button" aria-haspopup="true" :aria-controls="`dropdown-${element.__id}`">
                     <font-awesome-icon icon="ellipsis" />
                   </button>
                 </div>
-                <div class="dropdown-menu" id="dropdown-menu" role="menu">
+                <div class="dropdown-menu" :id="`dropdown-${element.__id}`" role="menu">
                   <div class="dropdown-content">
                     <a class="dropdown-item" @click="displayModal(element.__id)">Edit</a>
                     <a class="dropdown-item" @click="store.disable(element.__id)">Disable</a>
@@ -161,11 +150,11 @@ function updateLyrics() {
           <td class="has-text-right">
             <div class="dropdown is-right" @click="e => e.currentTarget.classList.toggle('is-active')">
               <div class="dropdown-trigger">
-                <button class="button" aria-haspopup="true" aria-controls="dropdown-menu">
+                <button class="button" aria-haspopup="true" :aria-controls="`dropdown-${lyric.__id}`">
                   <font-awesome-icon icon="ellipsis" />
                 </button>
               </div>
-              <div class="dropdown-menu" id="dropdown-menu" role="menu">
+              <div class="dropdown-menu" :id="`dropdown-${lyric.__id}`" role="menu">
                 <div class="dropdown-content">
                   <a class="dropdown-item" @click="displayModal(lyric.__id)">Edit</a>
                   <a class="dropdown-item" @click="store.enable(lyric.__id)">Enable</a>

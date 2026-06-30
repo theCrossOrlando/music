@@ -31,7 +31,9 @@ router.beforeEach(async (to, from) => {
   const store = useStore();
   const currentUser = await store.setCurrentUser();
 
-  if (currentUser && to.name != 'lyrics') {
+  // Send a logged-in user landing on the login page straight to the app,
+  // but leave them free to navigate to other authed routes (e.g. /data).
+  if (currentUser && to.name === 'home') {
     return {
       path: '/lyrics'
     }

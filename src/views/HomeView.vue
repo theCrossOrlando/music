@@ -10,7 +10,7 @@ const auth = getAuth(firebase)
 const loggedinUser = ref(null)
 
 onMounted(() => {
-  let ui = firebaseui.auth.AuthUI.getInstance()
+  let ui = firebaseuiAuth.AuthUI.getInstance()
 
   if (!ui) {
     ui = new firebaseuiAuth.AuthUI(getAuth(firebase))

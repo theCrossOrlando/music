@@ -68,7 +68,7 @@ export const useStore = defineStore('lyrics', {
         console.log("Document written with ID: ", docRef.id)
       }
     },
-    async saveOrder(evt) {
+    async saveOrder() {
       const batch = writeBatch(db)
       this.activeLyrics.map((l, i) => {
         const lyricRef = doc(db, 'lyrics', l.__id)
