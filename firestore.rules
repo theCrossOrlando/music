@@ -2,20 +2,34 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Lyrics + scripture are read publicly (e.g. a projection/display surface),
-    // but only an authenticated admin (Google sign-in) may create or modify them.
-    // To lock writes to specific admins, replace `request.auth != null` with:
-    //   request.auth != null && request.auth.uid in ['UID_1', 'UID_2']
+    // An admin is anyone with a document in /admins keyed by their auth uid.
+    // Membership is granted from the Firebase console only (see /admins below),
+    // so adding a volunteer never requires a rules deploy.
+    function isAdmin() {
+      return request.auth != null
+        && exists(/databases/$(database)/documents/admins/$(request.auth.uid));
+    }
+
+    // Published songs are world-readable so an external display surface can
+    // fetch them with where('enabled', '==', true). Admins read the full
+    // library, drafts included. Only admins write.
     match /lyrics/{doc} {
-      // Public lyrics page only needs published songs (it queries enabled==true);
-      // admins (authenticated) can read the full draft library.
-      allow read: if resource.data.enabled == true || request.auth != null;
-      allow write: if request.auth != null;
+      allow read: if resource.data.enabled == true || isAdmin();
+      allow write: if isAdmin();
     }
 
     match /scripture/{doc} {
       allow read: if true;
-      allow write: if request.auth != null;
+      allow write: if isAdmin();
+    }
+
+    // A signed-in user may check whether they themselves are an admin, and
+    // nothing else. Writes are refused outright: an admin must not be able to
+    // promote anyone from inside the app. Grant access by creating
+    // admins/<uid> in the Firebase console.
+    match /admins/{uid} {
+      allow read: if request.auth != null && request.auth.uid == uid;
+      allow write: if false;
     }
 
     // Deny access to anything else by default.
