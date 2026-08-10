@@ -1,17 +1,35 @@
-import { defineStore, storeToRefs } from 'pinia'
+import { defineStore } from 'pinia'
 import firebase from '../firebaseInit.js'
-import { query, collection, getFirestore, doc, updateDoc, where, writeBatch, deleteField, addDoc } from '@firebase/firestore'
-import { getAuth, onAuthStateChanged } from 'firebase/auth';
-import { bind } from "pinia-firestore"
+import {
+  collection,
+  getFirestore,
+  getDoc,
+  doc,
+  onSnapshot,
+  updateDoc,
+  writeBatch,
+  deleteField,
+  addDoc
+} from 'firebase/firestore'
+import { getAuth, onAuthStateChanged, signOut } from 'firebase/auth'
 
 const db = getFirestore(firebase)
 const auth = getAuth(firebase)
 const colRefLyrics = collection(db, 'lyrics')
 const colRefScripture = collection(db, 'scripture')
-const scripture = query(colRefScripture)
-const allLyrics = query(colRefLyrics)
-const activeLyrics = query(colRefLyrics, where("enabled", "==", true))
-const inActiveLyrics = query(colRefLyrics, where("enabled", "==", false))
+
+// Snapshots hand back a fresh array every time rather than being patched in
+// place. Splicing by docChanges() index — what pinia-firestore did — only holds
+// while local array order matches query order, which drag-to-reorder breaks.
+const toDocs = (snapshot) => snapshot.docs.map(d => ({ id: d.id, ...d.data() }))
+
+const byArtistThenSong = (a, b) =>
+  (a.artist ?? '').localeCompare(b.artist ?? '') ||
+  (a.song ?? '').localeCompare(b.song ?? '')
+
+// Listeners live outside state: they are not data, and Pinia should not try to
+// make an unsubscribe function reactive.
+let unsubscribers = []
 
 export const useStore = defineStore('lyrics', {
   state: () => ({
@@ -19,10 +37,10 @@ export const useStore = defineStore('lyrics', {
       uid: null,
       email: null
     },
+    isAdmin: false,
     lyrics: [],
-    inactiveLyrics: [],
-    activeLyrics: [],
     isLoading: false,
+    error: '',
     search: {
       artist: '',
       song: '',
@@ -30,34 +48,76 @@ export const useStore = defineStore('lyrics', {
     scripture: []
   }),
   actions: {
-    async init() {
+    // Called from every view's setup, so it has to be safe to call repeatedly.
+    init() {
+      if (unsubscribers.length) return
       this.isLoading = true
-      await bind(this, 'lyrics', allLyrics)
-      await bind(this, 'scripture', scripture)
-      await bind(this, 'inactiveLyrics', inActiveLyrics)
-      await bind(this, 'activeLyrics', activeLyrics)
-      this.inactiveLyrics.sort((a, b) => {
-        if (a.artist > b.artist) return 1
-        if (a.artist < b.artist) return -1
-        return 0
-      })
-      this.isLoading = false
+
+      const onError = (error) => {
+        this.isLoading = false
+        this.error = `Could not load data: ${error.message}`
+      }
+
+      unsubscribers.push(
+        onSnapshot(colRefLyrics, snapshot => {
+          this.lyrics = toDocs(snapshot)
+          this.isLoading = false
+        }, onError),
+        onSnapshot(colRefScripture, snapshot => {
+          this.scripture = toDocs(snapshot)
+        }, onError)
+      )
+    },
+    teardown() {
+      unsubscribers.forEach(unsub => unsub())
+      unsubscribers = []
+    },
+    // Drop the listeners before signing out, otherwise they keep running
+    // against rules that no longer admit the user and spray permission errors.
+    async signOut() {
+      this.teardown()
+      await signOut(auth)
+      this.$reset()
+    },
+    // Writes are wrapped so a rejected write surfaces instead of becoming an
+    // unhandled rejection — non-admins now hit the rules on every one of these.
+    async run(work, message) {
+      this.error = ''
+      try {
+        await work()
+        return true
+      } catch (error) {
+        this.error = `${message}: ${error.message}`
+        return false
+      }
     },
     enable(id) {
-      updateDoc(doc(db, `lyrics/${id}`), {
-        enabled: true,
-        order: this.activeLyrics.length
-      })
+      return this.run(
+        () => updateDoc(doc(db, 'lyrics', id), {
+          enabled: true,
+          order: this.activeLyrics.length
+        }),
+        'Could not add the song to the set list'
+      )
     },
     disable(id) {
-      updateDoc(doc(db, `lyrics/${id}`), {
-        enabled: false,
-        order: deleteField()
-      })
+      return this.run(
+        () => updateDoc(doc(db, 'lyrics', id), {
+          enabled: false,
+          order: deleteField()
+        }),
+        'Could not remove the song from the set list'
+      )
     },
-    async updateScripture(id) {
-      updateDoc(doc(db, `scripture/sunday`), { verse: this.scripture[id].verse })
+    updateScripture(id) {
+      const verse = this.scripture.find(s => s.id === id)?.verse
+      return this.run(
+        () => updateDoc(doc(db, 'scripture', id), { verse }),
+        'Could not update the scripture'
+      )
     },
+    // Throws rather than routing to this.error: the caller is the edit modal,
+    // which shows validation failures next to the fields that caused them.
     async updateLyrics(data) {
       const { id, ...rest } = data
       // Trim every field so a stray space never becomes a blank artist on the
@@ -67,66 +127,91 @@ export const useStore = defineStore('lyrics', {
         song: (rest.song ?? '').trim(),
         artist: (rest.artist ?? '').trim(),
         lyrics: (rest.lyrics ?? '').trim(),
+        // Legacy imports can lack this field entirely, and Firestore rejects a
+        // write containing undefined.
+        enabled: rest.enabled === true,
       }
       if (!lyrics.song || !lyrics.lyrics) {
         throw new Error('Song title and lyrics are both required.')
       }
       if (id) {
-        await updateDoc(doc(db, `lyrics/${id}`), lyrics)
+        await updateDoc(doc(db, 'lyrics', id), lyrics)
       }
       else {
         await addDoc(colRefLyrics, lyrics)
       }
     },
-    async saveOrder() {
-      const batch = writeBatch(db)
-      this.activeLyrics.map((l, i) => {
-        const lyricRef = doc(db, 'lyrics', l.__id)
-        batch.update(lyricRef, { order: i })
-      })
-      await batch.commit()
+    // Takes the reordered list rather than reading store state, so the caller
+    // can hand over vuedraggable's result directly.
+    saveOrder(ordered) {
+      return this.run(
+        () => {
+          const batch = writeBatch(db)
+          ordered.forEach((lyric, i) => {
+            batch.update(doc(db, 'lyrics', lyric.id), { order: i })
+          })
+          return batch.commit()
+        },
+        'Could not save the new set list order'
+      )
     },
     setCurrentUser() {
       return new Promise((resolve, reject) => {
-        const unsubscribe = onAuthStateChanged(auth, user => {
-          if (user != null) {
-            this.authedUser = {
-              uid: user.uid,
-              email: user.email
-            }
-            resolve(user);
-          }
-          else {
+        const unsubscribe = onAuthStateChanged(auth, async user => {
+          unsubscribe()
+
+          if (user == null) {
+            this.authedUser = { uid: null, email: null }
+            this.isAdmin = false
             resolve(false)
+            return
           }
-          unsubscribe();
-        }, reject);
+
+          this.authedUser = {
+            uid: user.uid,
+            email: user.email
+          }
+          // The rules let a signed-in user read their own /admins doc and
+          // nothing else, so this is the client's copy of the same check the
+          // rules make. It gates the UI; the rules gate the data.
+          try {
+            const adminDoc = await getDoc(doc(db, 'admins', user.uid))
+            this.isAdmin = adminDoc.exists()
+          } catch {
+            this.isAdmin = false
+          }
+          resolve(user)
+        }, reject)
       })
     }
   },
   getters: {
     getLyric: (state) => {
-      return (id) => state.lyrics.find(l => l.__id == id)
+      return (id) => state.lyrics.find(l => l.id === id)
     },
+    // filter() already returns a new array, so sorting it in place is safe.
+    activeLyrics: (state) =>
+      state.lyrics
+        .filter(l => l.enabled)
+        .sort((a, b) => (a.order ?? 0) - (b.order ?? 0)),
+    // A falsy test rather than enabled === false, so songs imported without the
+    // field still appear in the library instead of vanishing from both lists.
+    inactiveLyrics: (state) =>
+      state.lyrics
+        .filter(l => !l.enabled)
+        .sort(byArtistThenSong),
     filteredLyrics: (state) => {
-      if (state.search.artist === '' && state.search.song === '') {
+      const artist = state.search.artist.toLowerCase()
+      const song = state.search.song.toLowerCase()
+
+      if (artist === '' && song === '') {
         return state.inactiveLyrics
       }
 
-      return state.inactiveLyrics.filter(l => {
-        let artistIncluded = true
-        let songIncluded = true
-
-        if (state.search.artist !== '') {
-          artistIncluded = l.artist.toLowerCase().includes(state.search.artist.toLowerCase())
-        }
-
-        if (state.search.song !== '') {
-          songIncluded = l.song.toLowerCase().includes(state.search.song.toLowerCase())
-        }
-
-        return artistIncluded && songIncluded
-      })
+      return state.inactiveLyrics.filter(l =>
+        (artist === '' || (l.artist ?? '').toLowerCase().includes(artist)) &&
+        (song === '' || (l.song ?? '').toLowerCase().includes(song))
+      )
     },
   }
 })

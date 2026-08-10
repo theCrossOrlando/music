@@ -29,18 +29,21 @@ const router = createRouter({
 
 router.beforeEach(async (to, from) => {
   const store = useStore();
-  const currentUser = await store.setCurrentUser();
+  await store.setCurrentUser();
 
-  // Send a logged-in user landing on the login page straight to the app,
-  // but leave them free to navigate to other authed routes (e.g. /data).
-  if (currentUser && to.name === 'home') {
+  // Send an admin landing on the login page straight to the app, but leave
+  // them free to navigate to other authed routes (e.g. /data). The check is
+  // on admin rather than merely signed-in: bouncing every signed-in user to
+  // /lyrics would ping-pong a non-admin between the two redirects below.
+  if (store.isAdmin && to.name === 'home') {
     return {
       path: '/lyrics'
     }
   }
 
-  // Redirect to homepage if not logged in.
-  if (to.meta.requiresAuth && !currentUser) {
+  // Redirect to homepage if not an admin. The homepage explains why; the
+  // Firestore rules are what actually protect the data.
+  if (to.meta.requiresAuth && !store.isAdmin) {
     return {
       path: '/',
     }

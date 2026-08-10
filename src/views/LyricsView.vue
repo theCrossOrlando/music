@@ -1,10 +1,26 @@
 <script setup>
-import { ref } from "vue";
+import { computed, ref } from "vue";
+import { useRouter } from "vue-router";
 import { useStore } from '@/stores/lyrics';
 import draggable from 'vuedraggable'
 
 const store = useStore();
+const router = useRouter();
 store.init()
+
+async function signOut() {
+  await store.signOut()
+  router.push('/')
+}
+
+// draggable needs a writable binding, but activeLyrics is a derived getter.
+// The setter persists the new order instead of mutating the source; Firestore's
+// latency compensation re-emits the snapshot immediately, so the list does not
+// snap back while the write is in flight.
+const activeList = computed({
+  get: () => store.activeLyrics,
+  set: (ordered) => store.saveOrder(ordered),
+})
 
 const edit = ref({
   id: '',
@@ -15,9 +31,21 @@ const edit = ref({
 })
 const showModal = ref(false)
 const formError = ref('')
+// One id at a time, so opening a row's menu closes any other.
+const openMenu = ref(null)
+
+function toggleMenu(id) {
+  openMenu.value = openMenu.value === id ? null : id
+}
+
+function act(work) {
+  openMenu.value = null
+  work()
+}
 
 function displayModal(id) {
   formError.value = ''
+  openMenu.value = null
   edit.value = {
     artist: '',
     song: '',
@@ -51,17 +79,29 @@ async function updateLyrics() {
 
 <template>
   <main>
+    <div class="level">
+      <div class="level-left">&nbsp;</div>
+      <div class="level-right">
+        <span class="mr-3">{{ store.authedUser.email }}</span>
+        <button class="button is-small" @click="signOut">Sign out</button>
+      </div>
+    </div>
+    <div v-if="store.error" class="notification is-danger">
+      <button class="delete" aria-label="dismiss" @click="store.error = ''"></button>
+      {{ store.error }}
+    </div>
     <h1 class="is-size-1">Scripture</h1>
-    <div class="container" v-for="(scripture, __id) in store.scripture" v-bind:key="__id">
+    <div class="container" v-for="scripture in store.scripture" v-bind:key="scripture.id">
       <div class="field has-addons">
         <div class="control has-icons-left">
-          <input type="text" class="input" v-model="scripture.verse" placeholder="Scripture">
+          <input type="text" class="input" v-model="scripture.verse" placeholder="Scripture"
+            aria-label="Scripture">
           <span class="icon is-medium is-left">
             <font-awesome-icon icon="book" />
           </span>
         </div>
         <div class="control">
-          <a class="button is-primary" @click="store.updateScripture(__id)">Update</a>
+          <button class="button is-primary" @click="store.updateScripture(scripture.id)">Update</button>
         </div>
       </div>
     </div>
@@ -69,9 +109,10 @@ async function updateLyrics() {
       <div class="modal-background"></div>
       <div class="modal-content">
         <div class="container box p-6 has-background-light">
-          <input type="text" class="input m-2" v-model="edit.artist" placeholder="Artist">
-          <input type="text" class="input m-2" v-model="edit.song" placeholder="Song title">
-          <textarea class="textarea m-2" v-model="edit.lyrics" placeholder="Insert lyrics here" rows="20"></textarea>
+          <input type="text" class="input m-2" v-model="edit.artist" placeholder="Artist" aria-label="Artist">
+          <input type="text" class="input m-2" v-model="edit.song" placeholder="Song title" aria-label="Song title">
+          <textarea class="textarea m-2" v-model="edit.lyrics" placeholder="Insert lyrics here" rows="20"
+            aria-label="Lyrics"></textarea>
           <p v-if="formError" class="help is-danger m-2">{{ formError }}</p>
           <button class="button is-primary m-2" @click="updateLyrics">Save</button>
         </div>
@@ -81,8 +122,8 @@ async function updateLyrics() {
     <div class="level">
       <div class="level-left">&nbsp;</div>
       <div class="level-right">
-        <button class="button">
-          <font-awesome-icon icon="plus" @click="displayModal()" />
+        <button class="button" aria-label="Add a song" @click="displayModal()">
+          <font-awesome-icon icon="plus" />
         </button>
       </div>
     </div>
@@ -96,26 +137,26 @@ async function updateLyrics() {
         </tr>
       </thead>
       <draggable
-        v-model="store.activeLyrics"
-        @end="store.saveOrder"
+        v-model="activeList"
         tag="tbody"
-        item-key="__id"
+        item-key="id"
         >
         <template #item="{ element }">
           <tr>
-            <td scope="row">{{ element.artist }}</td>
+            <th scope="row">{{ element.artist }}</th>
             <td>{{ element.song }}</td>
             <td class="has-text-right">
-              <div class="dropdown is-right" @click="e => e.currentTarget.classList.toggle('is-active')">
+              <div class="dropdown is-right" :class="{ 'is-active': openMenu === element.id }">
                 <div class="dropdown-trigger">
-                  <button class="button" aria-haspopup="true" :aria-controls="`dropdown-${element.__id}`">
+                  <button class="button" aria-haspopup="true" :aria-expanded="openMenu === element.id"
+                    :aria-controls="`dropdown-${element.id}`" @click="toggleMenu(element.id)">
                     <font-awesome-icon icon="ellipsis" />
                   </button>
                 </div>
-                <div class="dropdown-menu" :id="`dropdown-${element.__id}`" role="menu">
+                <div class="dropdown-menu" :id="`dropdown-${element.id}`" role="menu">
                   <div class="dropdown-content">
-                    <a class="dropdown-item" @click="displayModal(element.__id)">Edit</a>
-                    <a class="dropdown-item" @click="store.disable(element.__id)">Disable</a>
+                    <button class="dropdown-item" @click="displayModal(element.id)">Edit</button>
+                    <button class="dropdown-item" @click="act(() => store.disable(element.id))">Disable</button>
                   </div>
                 </div>
               </div>
@@ -128,7 +169,8 @@ async function updateLyrics() {
     <div class="control">
       <div class="field">
         <p class="control has-icons-left">
-          <input class="input" type="text" v-model="store.search.song" placeholder="Search song">
+          <input class="input" type="text" v-model="store.search.song" placeholder="Search song"
+            aria-label="Search song">
           <span class="icon is-small is-left">
             <font-awesome-icon icon="music" />
           </span>
@@ -136,7 +178,8 @@ async function updateLyrics() {
       </div>
       <div class="field">
         <p class="control has-icons-left">
-          <input class="input" type="text" v-model="store.search.artist" placeholder="Search artist">
+          <input class="input" type="text" v-model="store.search.artist" placeholder="Search artist"
+            aria-label="Search artist">
           <span class="icon is-small is-left">
             <font-awesome-icon icon="user" />
           </span>
@@ -153,19 +196,20 @@ async function updateLyrics() {
       </thead>
       <tbody>
         <tr v-for="lyric in store.filteredLyrics" v-bind:key="lyric.id">
-          <td>{{ lyric.artist }}</td>
+          <th scope="row">{{ lyric.artist }}</th>
           <td>{{ lyric.song }}</td>
           <td class="has-text-right">
-            <div class="dropdown is-right" @click="e => e.currentTarget.classList.toggle('is-active')">
+            <div class="dropdown is-right" :class="{ 'is-active': openMenu === lyric.id }">
               <div class="dropdown-trigger">
-                <button class="button" aria-haspopup="true" :aria-controls="`dropdown-${lyric.__id}`">
+                <button class="button" aria-haspopup="true" :aria-expanded="openMenu === lyric.id"
+                  :aria-controls="`dropdown-${lyric.id}`" @click="toggleMenu(lyric.id)">
                   <font-awesome-icon icon="ellipsis" />
                 </button>
               </div>
-              <div class="dropdown-menu" :id="`dropdown-${lyric.__id}`" role="menu">
+              <div class="dropdown-menu" :id="`dropdown-${lyric.id}`" role="menu">
                 <div class="dropdown-content">
-                  <a class="dropdown-item" @click="displayModal(lyric.__id)">Edit</a>
-                  <a class="dropdown-item" @click="store.enable(lyric.__id)">Enable</a>
+                  <button class="dropdown-item" @click="displayModal(lyric.id)">Edit</button>
+                  <button class="dropdown-item" @click="act(() => store.enable(lyric.id))">Enable</button>
                 </div>
               </div>
             </div>
@@ -175,3 +219,21 @@ async function updateLyrics() {
     </table>
   </main>
 </template>
+
+<style scoped>
+/* Bulma styles button.dropdown-item but does not strip the native button
+   chrome, so without this the menu items render as grey boxes. */
+button.dropdown-item {
+  background: none;
+  border: none;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+/* The artist cell is a row header for screen readers, but Bulma renders th
+   bold and darker. Keep the semantics without restyling the column. */
+tbody th {
+  font-weight: normal;
+  color: inherit;
+}
+</style>
