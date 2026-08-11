@@ -3,6 +3,15 @@ import { computed, ref } from "vue";
 import { useRouter } from "vue-router";
 import { useStore } from '@/stores/lyrics';
 import draggable from 'vuedraggable'
+import {
+  DialogRoot, DialogPortal, DialogOverlay, DialogContent, DialogTitle,
+  DialogDescription, DialogClose,
+  DropdownMenuRoot, DropdownMenuTrigger, DropdownMenuPortal,
+  DropdownMenuContent, DropdownMenuItem,
+  ToastProvider, ToastRoot, ToastTitle, ToastDescription, ToastClose,
+  ToastViewport,
+  VisuallyHidden,
+} from 'reka-ui'
 
 const store = useStore();
 const router = useRouter();
@@ -31,21 +40,39 @@ const edit = ref({
 })
 const showModal = ref(false)
 const formError = ref('')
-// One id at a time, so opening a row's menu closes any other.
-const openMenu = ref(null)
 
-function toggleMenu(id) {
-  openMenu.value = openMenu.value === id ? null : id
+// Reka drives the toast's lifetime; routing its close back through the store
+// means auto-dismiss and the close button clear the error by the same path.
+function setToastOpen(open) {
+  if (!open) store.error = ''
 }
 
-function act(work) {
-  openMenu.value = null
-  work()
+// The modal is opened from a menu item that unmounts with its menu, so Reka has
+// nothing to hand focus back to on close and it lands on <body>. Name the
+// control that stands in for the origin and restore to that instead.
+const returnFocusTo = ref(null)
+
+function restoreFocus(event) {
+  // Queried by data attribute, not id: DropdownMenuTrigger assigns its own id
+  // and silently overrides any we set, so getElementById never matched.
+  const target = returnFocusTo.value
+    && document.querySelector(`[data-focus-key="${returnFocusTo.value}"]`)
+  if (target) {
+    event.preventDefault()
+    target.focus()
+  }
+}
+
+// Choosing "Edit" opens the dialog, but the menu closes a beat later and its
+// own focus restoration yanks focus back out to the trigger. Suppress it only
+// when the dialog is taking over; "Enable"/"Disable" still restore normally.
+function onMenuCloseAutoFocus(event) {
+  if (showModal.value) event.preventDefault()
 }
 
 function displayModal(id) {
   formError.value = ''
-  openMenu.value = null
+  returnFocusTo.value = id ? `row-menu-${id}` : 'add-song'
   edit.value = {
     artist: '',
     song: '',
@@ -78,18 +105,28 @@ async function updateLyrics() {
 </script>
 
 <template>
+  <ToastProvider>
   <main>
     <div class="level">
-      <div class="level-left">&nbsp;</div>
+      <div class="level-left">
+        <span v-if="store.isLoading" class="has-text-grey">Loading…</span>
+      </div>
       <div class="level-right">
         <span class="mr-3">{{ store.authedUser.email }}</span>
         <button class="button is-small" @click="signOut">Sign out</button>
       </div>
     </div>
-    <div v-if="store.error" class="notification is-danger">
-      <button class="delete" aria-label="dismiss" @click="store.error = ''"></button>
-      {{ store.error }}
-    </div>
+    <ToastRoot
+      class="notification is-danger toast-root"
+      :open="!!store.error"
+      :duration="8000"
+      @update:open="setToastOpen"
+    >
+      <ToastClose class="delete" aria-label="dismiss" />
+      <ToastTitle class="has-text-weight-bold">Something went wrong</ToastTitle>
+      <ToastDescription>{{ store.error }}</ToastDescription>
+    </ToastRoot>
+    <ToastViewport class="toast-viewport" />
     <h1 class="is-size-1">Scripture</h1>
     <div class="container" v-for="scripture in store.scripture" v-bind:key="scripture.id">
       <div class="field has-addons">
@@ -105,24 +142,39 @@ async function updateLyrics() {
         </div>
       </div>
     </div>
-    <div :class="['modal', { 'is-active': showModal }]">
-      <div class="modal-background"></div>
-      <div class="modal-content">
-        <div class="container box p-6 has-background-light">
-          <input type="text" class="input m-2" v-model="edit.artist" placeholder="Artist" aria-label="Artist">
-          <input type="text" class="input m-2" v-model="edit.song" placeholder="Song title" aria-label="Song title">
-          <textarea class="textarea m-2" v-model="edit.lyrics" placeholder="Insert lyrics here" rows="20"
-            aria-label="Lyrics"></textarea>
-          <p v-if="formError" class="help is-danger m-2">{{ formError }}</p>
-          <button class="button is-primary m-2" @click="updateLyrics">Save</button>
+    <DialogRoot v-model:open="showModal">
+      <DialogPortal>
+        <div v-if="showModal" class="modal is-active">
+          <DialogOverlay class="modal-background" />
+          <DialogContent class="modal-content" @close-auto-focus="restoreFocus">
+            <div class="container box p-6 has-background-light">
+              <DialogTitle class="is-size-4 mb-4">
+                {{ edit.id ? 'Edit song' : 'Add a song' }}
+              </DialogTitle>
+              <VisuallyHidden as-child>
+                <DialogDescription>
+                  Enter the artist, song title and lyrics, then save.
+                </DialogDescription>
+              </VisuallyHidden>
+              <input type="text" class="input m-2" v-model="edit.artist" placeholder="Artist" aria-label="Artist">
+              <input type="text" class="input m-2" v-model="edit.song" placeholder="Song title" aria-label="Song title">
+              <textarea class="textarea m-2" v-model="edit.lyrics" placeholder="Insert lyrics here" rows="20"
+                aria-label="Lyrics"></textarea>
+              <p v-if="formError" class="help is-danger m-2">{{ formError }}</p>
+              <div class="m-2">
+                <button class="button is-primary" @click="updateLyrics">Save</button>
+                <DialogClose as="button" class="button ml-2">Cancel</DialogClose>
+              </div>
+            </div>
+          </DialogContent>
+          <DialogClose as="button" class="modal-close is-large" aria-label="close" />
         </div>
-      </div>
-      <button class="modal-close is-large" @click="showModal = false" aria-label="close"></button>
-    </div>
+      </DialogPortal>
+    </DialogRoot>
     <div class="level">
       <div class="level-left">&nbsp;</div>
       <div class="level-right">
-        <button class="button" aria-label="Add a song" @click="displayModal()">
+        <button data-focus-key="add-song" class="button" aria-label="Add a song" @click="displayModal()">
           <font-awesome-icon icon="plus" />
         </button>
       </div>
@@ -146,20 +198,23 @@ async function updateLyrics() {
             <th scope="row">{{ element.artist }}</th>
             <td>{{ element.song }}</td>
             <td class="has-text-right">
-              <div class="dropdown is-right" :class="{ 'is-active': openMenu === element.id }">
-                <div class="dropdown-trigger">
-                  <button class="button" aria-haspopup="true" :aria-expanded="openMenu === element.id"
-                    :aria-controls="`dropdown-${element.id}`" @click="toggleMenu(element.id)">
-                    <font-awesome-icon icon="ellipsis" />
-                  </button>
-                </div>
-                <div class="dropdown-menu" :id="`dropdown-${element.id}`" role="menu">
-                  <div class="dropdown-content">
-                    <button class="dropdown-item" @click="displayModal(element.id)">Edit</button>
-                    <button class="dropdown-item" @click="act(() => store.disable(element.id))">Disable</button>
-                  </div>
-                </div>
-              </div>
+              <DropdownMenuRoot>
+                <DropdownMenuTrigger as="button" class="button" :data-focus-key="`row-menu-${element.id}`"
+                  :aria-label="`Actions for ${element.song}`">
+                  <font-awesome-icon icon="ellipsis" />
+                </DropdownMenuTrigger>
+                <DropdownMenuPortal>
+                  <DropdownMenuContent class="dropdown-content" align="end" :side-offset="4"
+                    @close-auto-focus="onMenuCloseAutoFocus">
+                    <DropdownMenuItem as="button" class="dropdown-item" @select="displayModal(element.id)">
+                      Edit
+                    </DropdownMenuItem>
+                    <DropdownMenuItem as="button" class="dropdown-item" @select="store.disable(element.id)">
+                      Disable
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenuPortal>
+              </DropdownMenuRoot>
             </td>
           </tr>
         </template>
@@ -199,25 +254,29 @@ async function updateLyrics() {
           <th scope="row">{{ lyric.artist }}</th>
           <td>{{ lyric.song }}</td>
           <td class="has-text-right">
-            <div class="dropdown is-right" :class="{ 'is-active': openMenu === lyric.id }">
-              <div class="dropdown-trigger">
-                <button class="button" aria-haspopup="true" :aria-expanded="openMenu === lyric.id"
-                  :aria-controls="`dropdown-${lyric.id}`" @click="toggleMenu(lyric.id)">
-                  <font-awesome-icon icon="ellipsis" />
-                </button>
-              </div>
-              <div class="dropdown-menu" :id="`dropdown-${lyric.id}`" role="menu">
-                <div class="dropdown-content">
-                  <button class="dropdown-item" @click="displayModal(lyric.id)">Edit</button>
-                  <button class="dropdown-item" @click="act(() => store.enable(lyric.id))">Enable</button>
-                </div>
-              </div>
-            </div>
+            <DropdownMenuRoot>
+              <DropdownMenuTrigger as="button" class="button" :data-focus-key="`row-menu-${lyric.id}`"
+                :aria-label="`Actions for ${lyric.song}`">
+                <font-awesome-icon icon="ellipsis" />
+              </DropdownMenuTrigger>
+              <DropdownMenuPortal>
+                <DropdownMenuContent class="dropdown-content" align="end" :side-offset="4"
+                    @close-auto-focus="onMenuCloseAutoFocus">
+                  <DropdownMenuItem as="button" class="dropdown-item" @select="displayModal(lyric.id)">
+                    Edit
+                  </DropdownMenuItem>
+                  <DropdownMenuItem as="button" class="dropdown-item" @select="store.enable(lyric.id)">
+                    Enable
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenuPortal>
+            </DropdownMenuRoot>
           </td>
         </tr>
       </tbody>
     </table>
   </main>
+  </ToastProvider>
 </template>
 
 <style scoped>
@@ -230,10 +289,40 @@ button.dropdown-item {
   cursor: pointer;
 }
 
+/* Reka positions the menu with floating-ui, so Bulma's .dropdown-menu
+   (position: absolute; top: 100%) is deliberately not used. .dropdown-content
+   supplies only the panel look, and needs its own width floor. */
+.dropdown-content {
+  min-width: 10rem;
+}
+
 /* The artist cell is a row header for screen readers, but Bulma renders th
    bold and darker. Keep the semantics without restyling the column. */
 tbody th {
   font-weight: normal;
   color: inherit;
+}
+</style>
+
+<!-- Not scoped: ToastViewport renders through an internal Teleport, so Vue's
+     scope id never reaches the element even though the class does. -->
+<style>
+.toast-viewport {
+  position: fixed;
+  bottom: 1rem;
+  right: 1rem;
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  width: 24rem;
+  max-width: calc(100vw - 2rem);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.toast-root {
+  margin: 0;
 }
 </style>
