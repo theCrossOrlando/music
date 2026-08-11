@@ -14,6 +14,7 @@ import {
   ToastViewport,
   VisuallyHidden,
 } from 'reka-ui'
+import { normalize, looksLikeChordPro, parseSections } from '@/lib/lyricsFormat.js'
 
 const store = useStore();
 const router = useRouter();
@@ -38,6 +39,8 @@ const edit = ref({
   artist: '',
   song: '',
   lyrics: '',
+  ccliNumber: '',
+  copyright: '',
   enabled: false
 })
 const showModal = ref(false)
@@ -98,13 +101,114 @@ async function reallyDelete() {
   if (target) await store.deleteLyric(target.id)
 }
 
+// Paste is where the structural clean-up happens, and it always reports itself.
+// Silently rewriting Mike's formatting is how he stops trusting the tool.
+const pasteChanges = ref([])
+const beforePaste = ref(null)
+const showPreview = ref(false)
+
+// Everything imported lands here, whether it arrived by paste, clipboard button
+// or dropped file — one place that decides how a normalize() result fills the form.
+function applyImport(result, previous) {
+  const { text, changes, ccliNumber, copyright, title, artist } = result
+  beforePaste.value = previous
+  edit.value.lyrics = text
+  if (ccliNumber && !edit.value.ccliNumber) edit.value.ccliNumber = ccliNumber
+  if (copyright && !edit.value.copyright) edit.value.copyright = copyright
+  if (title && !edit.value.song) edit.value.song = title
+  if (artist && !edit.value.artist) edit.value.artist = artist
+  pasteChanges.value = changes.length ? changes : ['Already tidy — nothing to change']
+}
+
+// SongSelect's Export → Copy puts the song on the clipboard; this reads it back.
+// The app never talks to SongSelect itself — automating their site would breach
+// the terms the church's licence depends on.
+const importError = ref('')
+
+async function importFromClipboard() {
+  importError.value = ''
+  try {
+    const clip = await navigator.clipboard.readText()
+    if (!clip.trim()) { importError.value = 'The clipboard is empty.'; return }
+    applyImport(normalize(clip, { structural: true }), edit.value.lyrics)
+  } catch {
+    importError.value = 'Could not read the clipboard — paste into the box instead.'
+  }
+}
+
+// Export → Download gives a file; accept it dropped or picked.
+async function importFile(file) {
+  if (!file) return
+  importError.value = ''
+  applyImport(normalize(await file.text(), { structural: true }), edit.value.lyrics)
+}
+
+function onDrop(event) {
+  const file = event.dataTransfer?.files?.[0]
+  if (file) { event.preventDefault(); importFile(file) }
+}
+
+function onLyricsPaste(event) {
+  const pasted = event.clipboardData?.getData('text')
+  if (!pasted) return
+
+  const field = event.target
+  const merged = field.value.slice(0, field.selectionStart) + pasted + field.value.slice(field.selectionEnd)
+  const { text, changes, ccliNumber, copyright } = normalize(merged, { structural: true })
+  if (!changes.length) return
+
+  event.preventDefault()
+  beforePaste.value = field.value
+  edit.value.lyrics = text
+  if (ccliNumber && !edit.value.ccliNumber) edit.value.ccliNumber = ccliNumber
+  if (copyright && !edit.value.copyright) edit.value.copyright = copyright
+  pasteChanges.value = changes
+}
+
+function undoPaste() {
+  if (beforePaste.value === null) return
+  edit.value.lyrics = beforePaste.value
+  beforePaste.value = null
+  pasteChanges.value = []
+}
+
+function tidyNow() {
+  applyImport(normalize(edit.value.lyrics, { structural: true }), edit.value.lyrics)
+}
+
+// We can start the search here and hand off, but the app never queries
+// SongSelect itself — automating their service would breach the terms the
+// church's licence rests on. Mike searches, hits Export → Copy, comes back.
+const songSelectUrl = computed(() => {
+  const query = [edit.value.song, edit.value.artist].filter(Boolean).join(' ').trim()
+  return `https://songselect.ccli.com/search/results?search=${encodeURIComponent(query)}`
+})
+
+// parse.js appends rather than reconciles, so duplicates are easy to create.
+const duplicateOf = computed(() => {
+  const title = edit.value.song.trim().toLowerCase()
+  if (!title) return null
+  return store.lyrics.find(
+    (l) => l.id !== edit.value.id && (l.song ?? '').trim().toLowerCase() === title) ?? null
+})
+
+// Same parser the public page uses, so this preview cannot drift from it.
+const previewSections = computed(() => parseSections(edit.value.lyrics))
+const isChordPro = computed(() => looksLikeChordPro(edit.value.lyrics))
+
 function displayModal(id) {
   formError.value = ''
+  pasteChanges.value = []
+  beforePaste.value = null
+  importError.value = ''
+  showPreview.value = false
   returnFocusTo.value = id ? `row-menu-${id}` : 'add-song'
   edit.value = {
     artist: '',
     song: '',
     lyrics: '',
+    ccliNumber: '',
+    copyright: '',
     enabled: false
   }
   showModal.value = true
@@ -116,6 +220,8 @@ function displayModal(id) {
       artist: editLyric.artist,
       song: editLyric.song,
       lyrics: editLyric.lyrics,
+      ccliNumber: editLyric.ccliNumber ?? '',
+      copyright: editLyric.copyright ?? '',
       enabled: editLyric.enabled
     }
   }
@@ -152,7 +258,7 @@ async function updateLyrics() {
           <h2 class="section-title">Scripture</h2>
           <div v-for="scripture in store.scripture" :key="scripture.id" class="flex gap-2">
             <div class="relative flex-1">
-              <span class="pointer-events-none absolute inset-y-0 left-3 flex items-center text-brass">
+              <span class="pointer-events-none absolute inset-y-0 left-3 flex items-center text-gold">
                 <font-awesome-icon icon="book" />
               </span>
               <input type="text" class="input pl-9" v-model="scripture.verse" placeholder="Scripture"
@@ -233,14 +339,14 @@ async function updateLyrics() {
           <h2 class="section-title">Library</h2>
           <div class="grid gap-2 sm:grid-cols-2">
             <div class="relative">
-              <span class="pointer-events-none absolute inset-y-0 left-3 flex items-center text-brass">
+              <span class="pointer-events-none absolute inset-y-0 left-3 flex items-center text-gold">
                 <font-awesome-icon icon="music" />
               </span>
               <input class="input pl-9" type="search" v-model="store.search.song" placeholder="Search song"
                 aria-label="Search song">
             </div>
             <div class="relative">
-              <span class="pointer-events-none absolute inset-y-0 left-3 flex items-center text-brass">
+              <span class="pointer-events-none absolute inset-y-0 left-3 flex items-center text-gold">
                 <font-awesome-icon icon="user" />
               </span>
               <input class="input pl-9" type="search" v-model="store.search.artist" placeholder="Search artist"
@@ -303,7 +409,7 @@ async function updateLyrics() {
         <DialogPortal>
           <DialogOverlay class="fixed inset-0 z-40 bg-ink/50" />
           <DialogContent
-            class="fixed inset-x-0 top-1/2 z-50 mx-auto w-[calc(100%-2rem)] max-w-2xl -translate-y-1/2
+            class="fixed inset-x-0 top-1/2 z-50 mx-auto w-[calc(100%-2rem)] max-w-2xl -translate-y-1/2 lg:max-w-5xl
                    rounded-md border border-brass-soft bg-white p-6 shadow-xl focus:outline-none"
             @close-auto-focus="restoreFocus">
             <DialogTitle class="font-display text-xl font-bold text-ink">
@@ -316,10 +422,89 @@ async function updateLyrics() {
             </VisuallyHidden>
 
             <div class="mt-4 space-y-3">
-              <input type="text" class="input" v-model="edit.artist" placeholder="Artist" aria-label="Artist">
-              <input type="text" class="input" v-model="edit.song" placeholder="Song title" aria-label="Song title">
-              <textarea class="input font-mono text-xs leading-relaxed" v-model="edit.lyrics"
-                placeholder="Insert lyrics here" rows="16" aria-label="Lyrics"></textarea>
+              <div class="grid gap-3 sm:grid-cols-2">
+                <input type="text" class="input" v-model="edit.artist" placeholder="Artist" aria-label="Artist">
+                <div class="flex gap-2">
+                  <input type="text" class="input" v-model="edit.song" placeholder="Song title"
+                    aria-label="Song title">
+                  <a class="btn shrink-0 whitespace-nowrap" :href="songSelectUrl" target="_blank" rel="noopener">
+                    Find on SongSelect ↗
+                  </a>
+                </div>
+              </div>
+
+              <p v-if="duplicateOf" class="rounded-md border border-brass bg-brass-wash p-2 text-xs text-ink">
+                “{{ duplicateOf.song }}” is already in the library{{ duplicateOf.artist ? ` by ${duplicateOf.artist}` : '' }}.
+                Saving this will create a second copy.
+              </p>
+              <div class="grid gap-3 sm:grid-cols-2">
+                <input type="text" class="input" v-model="edit.ccliNumber" placeholder="CCLI song number"
+                  aria-label="CCLI song number">
+                <input type="text" class="input" v-model="edit.copyright" placeholder="Copyright line"
+                  aria-label="Copyright line">
+              </div>
+
+              <div class="flex flex-wrap items-center justify-between gap-3">
+                <p class="font-label text-[11px] uppercase tracking-wider text-gold">Lyrics</p>
+                <div class="flex items-center gap-3 text-xs">
+                  <button type="button" class="btn btn-sm" @click="importFromClipboard">
+                    Import from SongSelect
+                  </button>
+                  <label class="btn btn-sm cursor-pointer">
+                    Open file
+                    <input type="file" class="sr-only" accept=".txt,.pro,.cho,.chordpro,text/plain"
+                      @change="importFile($event.target.files[0]); $event.target.value = ''">
+                  </label>
+                  <button type="button" class="text-gold underline underline-offset-2" @click="tidyNow">
+                    Tidy formatting
+                  </button>
+                  <button type="button" class="text-gold underline underline-offset-2"
+                    @click="showPreview = !showPreview">
+                    {{ showPreview ? 'Hide preview' : 'Preview' }}
+                  </button>
+                </div>
+              </div>
+
+              <!-- Paste is cleaned up, but never silently. -->
+              <div v-if="pasteChanges.length"
+                class="rounded-md border border-brass bg-brass-wash p-3 text-xs text-ink">
+                <div class="flex items-start justify-between gap-3">
+                  <ul class="space-y-0.5">
+                    <li v-for="change in pasteChanges" :key="change">• {{ change }}</li>
+                  </ul>
+                  <button v-if="beforePaste !== null" type="button"
+                    class="shrink-0 text-gold underline underline-offset-2" @click="undoPaste">Undo</button>
+                </div>
+              </div>
+
+              <p v-if="importError" class="text-xs text-red-800">{{ importError }}</p>
+
+              <p v-if="isChordPro" class="text-xs text-red-800">
+                This still looks like ChordPro. “Tidy formatting” will convert the sections and remove the chords.
+              </p>
+
+              <div class="grid gap-3" :class="showPreview ? 'lg:grid-cols-2' : ''">
+                <textarea class="input font-mono text-xs leading-relaxed" v-model="edit.lyrics"
+                  placeholder="Paste from SongSelect, drop an exported file, or type lyrics here"
+                  rows="16" aria-label="Lyrics"
+                  @paste="onLyricsPaste" @drop="onDrop" @dragover.prevent></textarea>
+
+                <!-- Rendered by the same parser the public page uses. -->
+                <div v-if="showPreview"
+                  class="max-h-[26rem] overflow-y-auto rounded-md border border-brass-soft bg-paper p-4">
+                  <p class="font-display text-2xl font-bold text-ink">{{ edit.song || 'Song title' }}</p>
+                  <p v-if="edit.artist" class="mb-3 text-xs font-semibold text-ink-soft">by {{ edit.artist }}</p>
+                  <template v-if="previewSections">
+                    <div v-for="(section, i) in previewSections" :key="i" class="mt-4 first:mt-0">
+                      <p v-if="section.label"
+                        class="font-label text-[11px] uppercase tracking-wider text-gold">{{ section.label }}</p>
+                      <p class="whitespace-pre-wrap text-sm text-ink">{{ section.body }}</p>
+                    </div>
+                  </template>
+                  <p v-else class="whitespace-pre-wrap text-sm text-ink">{{ edit.lyrics }}</p>
+                </div>
+              </div>
+
               <p v-if="formError" class="text-sm text-red-600">{{ formError }}</p>
             </div>
 

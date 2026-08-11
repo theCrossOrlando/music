@@ -13,6 +13,7 @@ import {
   addDoc
 } from 'firebase/firestore'
 import { getAuth, onAuthStateChanged, signOut } from 'firebase/auth'
+import { normalize } from '@/lib/lyricsFormat.js'
 
 const db = getFirestore(firebase)
 const auth = getAuth(firebase)
@@ -135,7 +136,9 @@ export const useStore = defineStore('lyrics', {
         ...rest,
         song: (rest.song ?? '').trim(),
         artist: (rest.artist ?? '').trim(),
-        lyrics: (rest.lyrics ?? '').trim(),
+        // Safe pass only — never structural. An ordinary save tidies whitespace
+        // and quotes; it must not restructure lyrics someone laid out by hand.
+        lyrics: normalize(rest.lyrics ?? '').text,
         // Legacy imports can lack this field entirely, and Firestore rejects a
         // write containing undefined.
         enabled: rest.enabled === true,

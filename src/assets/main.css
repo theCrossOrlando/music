@@ -12,6 +12,10 @@
   --color-brass: #d5ae43;
   --color-brass-soft: #ecdcae;
   --color-brass-wash: #fbf6e8;
+  /* The public site's accessible gold. Its own SCSS documents that the bright
+     brand gold fails WCAG for text, so brass is for borders and this is for
+     glyphs. */
+  --color-gold: #7a5e12;
 
   --font-display: Cardo, Georgia, "Times New Roman", serif;
   --font-label: Arvo, Georgia, serif;
