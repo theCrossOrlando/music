@@ -2,6 +2,7 @@ import { createRouter, createWebHistory } from 'vue-router'
 import HomeView from '../views/HomeView.vue'
 import LyricsView from '../views/LyricsView.vue'
 import DataView from '../views/DataView.vue'
+import DuplicatesView from '../views/DuplicatesView.vue'
 import { useStore } from '@/stores/lyrics';
 
 const router = createRouter({
@@ -16,6 +17,12 @@ const router = createRouter({
       path: '/lyrics',
       name: 'lyrics',
       component: LyricsView,
+      meta: { requiresAuth: true }
+    },
+    {
+      path: '/duplicates',
+      name: 'duplicates',
+      component: DuplicatesView,
       meta: { requiresAuth: true }
     },
     {

@@ -1,6 +1,6 @@
 <script setup>
 import { computed, ref } from "vue";
-import { useRouter } from "vue-router";
+import { RouterLink, useRouter } from "vue-router";
 import { useStore } from '@/stores/lyrics';
 import draggable from 'vuedraggable'
 import {
@@ -336,7 +336,12 @@ async function updateLyrics() {
 
         <!-- Library -->
         <section class="space-y-3">
-          <h2 class="section-title">Library</h2>
+          <div class="flex items-center justify-between gap-4">
+            <h2 class="section-title">Library</h2>
+            <RouterLink to="/duplicates" class="text-xs text-gold underline underline-offset-2">
+              Find duplicates
+            </RouterLink>
+          </div>
           <div class="grid gap-2 sm:grid-cols-2">
             <div class="relative">
               <span class="pointer-events-none absolute inset-y-0 left-3 flex items-center text-gold">

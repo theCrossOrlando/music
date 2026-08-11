@@ -10,6 +10,7 @@ import {
   writeBatch,
   deleteField,
   deleteDoc,
+  arrayUnion,
   addDoc
 } from 'firebase/firestore'
 import { getAuth, onAuthStateChanged, signOut } from 'firebase/auth'
@@ -111,6 +112,39 @@ export const useStore = defineStore('lyrics', {
         'Could not remove the song from the set list'
       )
     },
+    // Merge: fill blanks on the keeper from its siblings, then delete them.
+    // The writes are batched so a half-finished merge can't leave the library
+    // with the keeper updated and the duplicates still present, or worse.
+    mergeSongs({ keepId, fields, deleteIds }) {
+      return this.run(
+        () => {
+          const batch = writeBatch(db)
+          if (Object.keys(fields ?? {}).length) {
+            batch.update(doc(db, 'lyrics', keepId), fields)
+          }
+          for (const id of deleteIds) batch.delete(doc(db, 'lyrics', id))
+          return batch.commit()
+        },
+        'Could not merge those songs'
+      )
+    },
+
+    // Remember that a pair is not a duplicate, on both sides, so the tool
+    // stops offering it. Without this the same false match is reviewed forever.
+    dismissDuplicates(ids) {
+      return this.run(
+        () => {
+          const batch = writeBatch(db)
+          for (const id of ids) {
+            const others = ids.filter((other) => other !== id)
+            batch.update(doc(db, 'lyrics', id), { notDuplicates: arrayUnion(...others) })
+          }
+          return batch.commit()
+        },
+        'Could not save that'
+      )
+    },
+
     // Irreversible, and the rules already cover it: `allow write` on /lyrics
     // spans create, update and delete. Callers are expected to confirm first.
     deleteLyric(id) {
