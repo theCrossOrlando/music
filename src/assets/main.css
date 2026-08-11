@@ -1,35 +1,102 @@
-@import "./base.css";
+@import "tailwindcss";
 
-#app {
-  max-width: 1280px;
-  margin: 0 auto;
-  padding: 2rem;
-
-  font-weight: normal;
+/* Slate neutrals with an emerald primary, which lands close to the turquoise
+   Bulma used, so the app still reads as the same product. */
+@theme {
+  --color-brand-50: oklch(0.979 0.021 166.113);
+  --color-brand-100: oklch(0.95 0.052 163.051);
+  --color-brand-500: oklch(0.696 0.17 162.48);
+  --color-brand-600: oklch(0.596 0.145 163.225);
+  --color-brand-700: oklch(0.508 0.118 165.612);
 }
 
-a,
-.green {
-  text-decoration: none;
-  color: hsla(160, 100%, 37%, 1);
-  transition: 0.4s;
-}
-
-@media (hover: hover) {
-  a:hover {
-    background-color: hsla(160, 100%, 37%, 0.2);
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
   }
-}
 
-@media (min-width: 1024px) {
   body {
-    display: flex;
-    place-items: center;
+    @apply min-h-screen bg-slate-50 text-slate-800 antialiased;
   }
 
-  #app {
-    display: grid;
-    padding: 0 2rem;
-    width: 100%;
+  /* Nothing here relies on a fixed body font-size, and the old scaffolding
+     centred the whole page vertically above 1024px. Content starts at the top. */
+}
+
+@layer components {
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-md border border-slate-300
+           bg-white px-3 py-2 text-sm font-medium text-slate-700 shadow-xs
+           transition-colors hover:bg-slate-100
+           focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600
+           disabled:cursor-not-allowed disabled:opacity-50;
+  }
+
+  .btn-primary {
+    @apply border-transparent bg-brand-600 text-white hover:bg-brand-700;
+  }
+
+  .btn-sm {
+    @apply px-2.5 py-1.5 text-xs;
+  }
+
+  /* Square, for the icon-only row and toolbar buttons. */
+  .btn-icon {
+    @apply px-2.5;
+  }
+
+  .input {
+    @apply block w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm
+           text-slate-900 shadow-xs placeholder:text-slate-400
+           focus:border-brand-600 focus:outline-2 focus:outline-offset-0 focus:outline-brand-600;
+  }
+
+  .card {
+    @apply rounded-lg border border-slate-200 bg-white shadow-xs;
+  }
+
+  .section-title {
+    @apply text-lg font-semibold tracking-tight text-slate-900;
+  }
+
+  /* Tables scroll sideways rather than squashing on a phone. Repeats .card's
+     utilities rather than @apply-ing it: v4's @apply takes real utilities, not
+     other component classes. */
+  .table-wrap {
+    @apply overflow-x-auto rounded-lg border border-slate-200 bg-white shadow-xs;
+  }
+
+  .table {
+    @apply w-full border-collapse text-left text-sm;
+  }
+
+  .table thead th {
+    @apply border-b border-slate-200 bg-slate-50 px-4 py-2.5 text-xs font-semibold
+           uppercase tracking-wide text-slate-500;
+  }
+
+  .table tbody td,
+  .table tbody th {
+    @apply border-b border-slate-100 px-4 py-2.5 font-normal text-slate-700;
+  }
+
+  .table tbody tr:last-child td,
+  .table tbody tr:last-child th {
+    @apply border-b-0;
+  }
+
+  .table tbody tr:hover {
+    @apply bg-slate-50;
+  }
+
+  /* Reka renders these as real buttons, so they need the chrome stripped. */
+  .menu-item {
+    @apply flex w-full cursor-pointer items-center rounded px-3 py-2 text-left text-sm
+           text-slate-700 select-none
+           data-highlighted:bg-slate-100 data-highlighted:text-slate-900 focus:outline-none;
+  }
+
+  .menu-panel {
+    @apply z-50 min-w-40 rounded-lg border border-slate-200 bg-white p-1 shadow-lg;
   }
 }

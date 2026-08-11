@@ -39,25 +39,31 @@ onBeforeUnmount(() => authListener())
 </script>
 
 <template>
-  <main>
-    <div class="content">
-      <div v-if="error" class="notification is-danger">{{ error }}</div>
+  <main class="flex min-h-screen items-center justify-center px-4 py-12">
+    <div class="w-full max-w-sm space-y-6 text-center">
+      <div class="space-y-1">
+        <h1 class="text-xl font-semibold tracking-tight text-slate-900">theCross Music</h1>
+        <p class="text-sm text-slate-500">Worship set administration</p>
+      </div>
 
-      <button v-if="!loggedinUser" class="button is-primary is-medium" @click="signIn">
+      <div v-if="error" class="rounded-md border border-red-200 bg-red-50 p-3 text-left text-sm text-red-800">
+        {{ error }}
+      </div>
+
+      <button v-if="!loggedinUser" class="btn btn-primary w-full justify-center py-2.5" @click="signIn">
         Sign in with Google
       </button>
 
       <template v-else>
-        <div v-if="!store.isAdmin" class="notification is-warning">
+        <div v-if="!store.isAdmin"
+          class="space-y-2 rounded-md border border-amber-200 bg-amber-50 p-4 text-left text-sm text-amber-900">
           <p>
-            You are signed in as <strong>{{ loggedinUser.email }}</strong>, but that
+            You are signed in as <strong class="font-semibold">{{ loggedinUser.email }}</strong>, but that
             account is not set up as an administrator of this site.
           </p>
-          <p>
-            Ask an existing administrator to add you, then sign in again.
-          </p>
+          <p>Ask an existing administrator to add you, then sign in again.</p>
         </div>
-        <button class="button" @click="store.signOut()">Sign out</button>
+        <button class="btn w-full justify-center" @click="store.signOut()">Sign out</button>
       </template>
     </div>
   </main>

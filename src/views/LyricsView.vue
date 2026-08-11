@@ -106,223 +106,208 @@ async function updateLyrics() {
 
 <template>
   <ToastProvider>
-  <main>
-    <div class="level">
-      <div class="level-left">
-        <span v-if="store.isLoading" class="has-text-grey">Loading…</span>
-      </div>
-      <div class="level-right">
-        <span class="mr-3">{{ store.authedUser.email }}</span>
-        <button class="button is-small" @click="signOut">Sign out</button>
-      </div>
-    </div>
-    <ToastRoot
-      class="notification is-danger toast-root"
-      :open="!!store.error"
-      :duration="8000"
-      @update:open="setToastOpen"
-    >
-      <ToastClose class="delete" aria-label="dismiss" />
-      <ToastTitle class="has-text-weight-bold">Something went wrong</ToastTitle>
-      <ToastDescription>{{ store.error }}</ToastDescription>
-    </ToastRoot>
-    <ToastViewport class="toast-viewport" />
-    <h1 class="is-size-1">Scripture</h1>
-    <div class="container" v-for="scripture in store.scripture" v-bind:key="scripture.id">
-      <div class="field has-addons">
-        <div class="control has-icons-left">
-          <input type="text" class="input" v-model="scripture.verse" placeholder="Scripture"
-            aria-label="Scripture">
-          <span class="icon is-medium is-left">
-            <font-awesome-icon icon="book" />
-          </span>
+    <div class="min-h-screen">
+      <header class="sticky top-0 z-30 border-b border-slate-200 bg-white/90 backdrop-blur">
+        <div class="mx-auto flex max-w-5xl items-center gap-4 px-4 py-3 sm:px-6">
+          <h1 class="text-sm font-semibold tracking-tight text-slate-900">theCross Music</h1>
+          <span v-if="store.isLoading" class="text-xs text-slate-500">Loading…</span>
+          <div class="ml-auto flex items-center gap-3">
+            <span class="hidden text-xs text-slate-500 sm:inline">{{ store.authedUser.email }}</span>
+            <button class="btn btn-sm" @click="signOut">Sign out</button>
+          </div>
         </div>
-        <div class="control">
-          <button class="button is-primary" @click="store.updateScripture(scripture.id)">Update</button>
-        </div>
-      </div>
-    </div>
-    <DialogRoot v-model:open="showModal">
-      <DialogPortal>
-        <div v-if="showModal" class="modal is-active">
-          <DialogOverlay class="modal-background" />
-          <DialogContent class="modal-content" @close-auto-focus="restoreFocus">
-            <div class="container box p-6 has-background-light">
-              <DialogTitle class="is-size-4 mb-4">
-                {{ edit.id ? 'Edit song' : 'Add a song' }}
-              </DialogTitle>
-              <VisuallyHidden as-child>
-                <DialogDescription>
-                  Enter the artist, song title and lyrics, then save.
-                </DialogDescription>
-              </VisuallyHidden>
-              <input type="text" class="input m-2" v-model="edit.artist" placeholder="Artist" aria-label="Artist">
-              <input type="text" class="input m-2" v-model="edit.song" placeholder="Song title" aria-label="Song title">
-              <textarea class="textarea m-2" v-model="edit.lyrics" placeholder="Insert lyrics here" rows="20"
-                aria-label="Lyrics"></textarea>
-              <p v-if="formError" class="help is-danger m-2">{{ formError }}</p>
-              <div class="m-2">
-                <button class="button is-primary" @click="updateLyrics">Save</button>
-                <DialogClose as="button" class="button ml-2">Cancel</DialogClose>
-              </div>
+      </header>
+
+      <main class="mx-auto max-w-5xl space-y-10 px-4 py-8 sm:px-6">
+        <!-- Scripture -->
+        <section class="space-y-3">
+          <h2 class="section-title">Scripture</h2>
+          <div v-for="scripture in store.scripture" :key="scripture.id" class="flex gap-2">
+            <div class="relative flex-1">
+              <span class="pointer-events-none absolute inset-y-0 left-3 flex items-center text-slate-400">
+                <font-awesome-icon icon="book" />
+              </span>
+              <input type="text" class="input pl-9" v-model="scripture.verse" placeholder="Scripture"
+                aria-label="Scripture">
+            </div>
+            <button class="btn btn-primary" @click="store.updateScripture(scripture.id)">Update</button>
+          </div>
+        </section>
+
+        <!-- Active set list -->
+        <section class="space-y-3">
+          <div class="flex items-center justify-between gap-4">
+            <div>
+              <h2 class="section-title">Set list</h2>
+              <p class="text-xs text-slate-500">Drag to reorder. This is the order they play in.</p>
+            </div>
+            <button data-focus-key="add-song" class="btn btn-primary shrink-0 whitespace-nowrap"
+              @click="displayModal()">
+              <font-awesome-icon icon="plus" />
+              Add song
+            </button>
+          </div>
+
+          <div class="table-wrap">
+            <table class="table">
+              <thead>
+                <tr>
+                  <th scope="col">Artist</th>
+                  <th scope="col">Song</th>
+                  <th scope="col"><span class="sr-only">Actions</span></th>
+                </tr>
+              </thead>
+              <draggable v-model="activeList" tag="tbody" item-key="id" handle=".drag-handle">
+                <template #item="{ element }">
+                  <tr class="group">
+                    <th scope="row">
+                      <span class="drag-handle mr-2 cursor-grab text-slate-300 group-hover:text-slate-400"
+                        aria-hidden="true">⠿</span>{{ element.artist }}
+                    </th>
+                    <td>{{ element.song }}</td>
+                    <td class="w-px text-right">
+                      <DropdownMenuRoot>
+                        <DropdownMenuTrigger as="button" class="btn btn-sm btn-icon"
+                          :data-focus-key="`row-menu-${element.id}`"
+                          :aria-label="`Actions for ${element.song}`">
+                          <font-awesome-icon icon="ellipsis" />
+                        </DropdownMenuTrigger>
+                        <DropdownMenuPortal>
+                          <DropdownMenuContent class="menu-panel" align="end" :side-offset="4"
+                            @close-auto-focus="onMenuCloseAutoFocus">
+                            <DropdownMenuItem as="button" class="menu-item" @select="displayModal(element.id)">
+                              Edit
+                            </DropdownMenuItem>
+                            <DropdownMenuItem as="button" class="menu-item" @select="store.disable(element.id)">
+                              Remove from set list
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenuPortal>
+                      </DropdownMenuRoot>
+                    </td>
+                  </tr>
+                </template>
+              </draggable>
+            </table>
+            <p v-if="!store.activeLyrics.length" class="px-4 py-8 text-center text-sm text-slate-500">
+              No songs in the set list yet. Add one from the library below.
+            </p>
+          </div>
+        </section>
+
+        <!-- Library -->
+        <section class="space-y-3">
+          <h2 class="section-title">Library</h2>
+          <div class="grid gap-2 sm:grid-cols-2">
+            <div class="relative">
+              <span class="pointer-events-none absolute inset-y-0 left-3 flex items-center text-slate-400">
+                <font-awesome-icon icon="music" />
+              </span>
+              <input class="input pl-9" type="search" v-model="store.search.song" placeholder="Search song"
+                aria-label="Search song">
+            </div>
+            <div class="relative">
+              <span class="pointer-events-none absolute inset-y-0 left-3 flex items-center text-slate-400">
+                <font-awesome-icon icon="user" />
+              </span>
+              <input class="input pl-9" type="search" v-model="store.search.artist" placeholder="Search artist"
+                aria-label="Search artist">
+            </div>
+          </div>
+
+          <div class="table-wrap">
+            <table class="table">
+              <thead>
+                <tr>
+                  <th scope="col">Artist</th>
+                  <th scope="col">Song</th>
+                  <th scope="col"><span class="sr-only">Actions</span></th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="lyric in store.filteredLyrics" :key="lyric.id">
+                  <th scope="row">{{ lyric.artist }}</th>
+                  <td>{{ lyric.song }}</td>
+                  <td class="w-px text-right">
+                    <DropdownMenuRoot>
+                      <DropdownMenuTrigger as="button" class="btn btn-sm btn-icon"
+                        :data-focus-key="`row-menu-${lyric.id}`"
+                        :aria-label="`Actions for ${lyric.song}`">
+                        <font-awesome-icon icon="ellipsis" />
+                      </DropdownMenuTrigger>
+                      <DropdownMenuPortal>
+                        <DropdownMenuContent class="menu-panel" align="end" :side-offset="4"
+                          @close-auto-focus="onMenuCloseAutoFocus">
+                          <DropdownMenuItem as="button" class="menu-item" @select="displayModal(lyric.id)">
+                            Edit
+                          </DropdownMenuItem>
+                          <DropdownMenuItem as="button" class="menu-item" @select="store.enable(lyric.id)">
+                            Add to set list
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenuPortal>
+                    </DropdownMenuRoot>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+            <p v-if="!store.filteredLyrics.length" class="px-4 py-8 text-center text-sm text-slate-500">
+              {{ store.search.song || store.search.artist
+                ? 'No songs match that search.'
+                : 'The library is empty.' }}
+            </p>
+          </div>
+        </section>
+      </main>
+
+      <!-- Edit / add song -->
+      <DialogRoot v-model:open="showModal">
+        <DialogPortal>
+          <DialogOverlay class="fixed inset-0 z-40 bg-slate-900/50" />
+          <DialogContent
+            class="fixed inset-x-0 top-1/2 z-50 mx-auto w-[calc(100%-2rem)] max-w-2xl -translate-y-1/2
+                   rounded-lg bg-white p-6 shadow-xl focus:outline-none"
+            @close-auto-focus="restoreFocus">
+            <DialogTitle class="text-base font-semibold text-slate-900">
+              {{ edit.id ? 'Edit song' : 'Add a song' }}
+            </DialogTitle>
+            <VisuallyHidden as-child>
+              <DialogDescription>
+                Enter the artist, song title and lyrics, then save.
+              </DialogDescription>
+            </VisuallyHidden>
+
+            <div class="mt-4 space-y-3">
+              <input type="text" class="input" v-model="edit.artist" placeholder="Artist" aria-label="Artist">
+              <input type="text" class="input" v-model="edit.song" placeholder="Song title" aria-label="Song title">
+              <textarea class="input font-mono text-xs leading-relaxed" v-model="edit.lyrics"
+                placeholder="Insert lyrics here" rows="16" aria-label="Lyrics"></textarea>
+              <p v-if="formError" class="text-sm text-red-600">{{ formError }}</p>
+            </div>
+
+            <div class="mt-5 flex justify-end gap-2">
+              <DialogClose as="button" class="btn">Cancel</DialogClose>
+              <button class="btn btn-primary" @click="updateLyrics">Save</button>
             </div>
           </DialogContent>
-          <DialogClose as="button" class="modal-close is-large" aria-label="close" />
+        </DialogPortal>
+      </DialogRoot>
+
+      <!-- Background write failures -->
+      <ToastRoot
+        class="card flex items-start gap-3 border-red-200 bg-red-50 p-4"
+        :open="!!store.error"
+        :duration="8000"
+        @update:open="setToastOpen"
+      >
+        <div class="flex-1">
+          <ToastTitle class="text-sm font-semibold text-red-900">Something went wrong</ToastTitle>
+          <ToastDescription class="mt-0.5 text-sm text-red-800">{{ store.error }}</ToastDescription>
         </div>
-      </DialogPortal>
-    </DialogRoot>
-    <div class="level">
-      <div class="level-left">&nbsp;</div>
-      <div class="level-right">
-        <button data-focus-key="add-song" class="button" aria-label="Add a song" @click="displayModal()">
-          <font-awesome-icon icon="plus" />
-        </button>
-      </div>
+        <ToastClose class="text-red-400 hover:text-red-600" aria-label="dismiss">✕</ToastClose>
+      </ToastRoot>
+      <ToastViewport
+        class="fixed bottom-4 right-4 z-50 flex w-[calc(100%-2rem)] max-w-sm flex-col gap-2 outline-none" />
     </div>
-    <h1 class="is-size-1">Active Lyrics</h1>
-    <table class="table is-striped is-hoverable is-fullwidth">
-      <thead>
-        <tr>
-          <th>Artist</th>
-          <th>Song</th>
-          <th>&nbsp;</th>
-        </tr>
-      </thead>
-      <draggable
-        v-model="activeList"
-        tag="tbody"
-        item-key="id"
-        >
-        <template #item="{ element }">
-          <tr>
-            <th scope="row">{{ element.artist }}</th>
-            <td>{{ element.song }}</td>
-            <td class="has-text-right">
-              <DropdownMenuRoot>
-                <DropdownMenuTrigger as="button" class="button" :data-focus-key="`row-menu-${element.id}`"
-                  :aria-label="`Actions for ${element.song}`">
-                  <font-awesome-icon icon="ellipsis" />
-                </DropdownMenuTrigger>
-                <DropdownMenuPortal>
-                  <DropdownMenuContent class="dropdown-content" align="end" :side-offset="4"
-                    @close-auto-focus="onMenuCloseAutoFocus">
-                    <DropdownMenuItem as="button" class="dropdown-item" @select="displayModal(element.id)">
-                      Edit
-                    </DropdownMenuItem>
-                    <DropdownMenuItem as="button" class="dropdown-item" @select="store.disable(element.id)">
-                      Disable
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenuPortal>
-              </DropdownMenuRoot>
-            </td>
-          </tr>
-        </template>
-      </draggable>
-    </table>
-    <h1 class="is-size-1">Library</h1>
-    <div class="control">
-      <div class="field">
-        <p class="control has-icons-left">
-          <input class="input" type="text" v-model="store.search.song" placeholder="Search song"
-            aria-label="Search song">
-          <span class="icon is-small is-left">
-            <font-awesome-icon icon="music" />
-          </span>
-        </p>
-      </div>
-      <div class="field">
-        <p class="control has-icons-left">
-          <input class="input" type="text" v-model="store.search.artist" placeholder="Search artist"
-            aria-label="Search artist">
-          <span class="icon is-small is-left">
-            <font-awesome-icon icon="user" />
-          </span>
-        </p>
-      </div>
-    </div>
-    <table class="table is-striped is-hoverable is-fullwidth">
-      <thead>
-        <tr>
-          <th>Artist</th>
-          <th>Song</th>
-          <th>&nbsp;</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr v-for="lyric in store.filteredLyrics" v-bind:key="lyric.id">
-          <th scope="row">{{ lyric.artist }}</th>
-          <td>{{ lyric.song }}</td>
-          <td class="has-text-right">
-            <DropdownMenuRoot>
-              <DropdownMenuTrigger as="button" class="button" :data-focus-key="`row-menu-${lyric.id}`"
-                :aria-label="`Actions for ${lyric.song}`">
-                <font-awesome-icon icon="ellipsis" />
-              </DropdownMenuTrigger>
-              <DropdownMenuPortal>
-                <DropdownMenuContent class="dropdown-content" align="end" :side-offset="4"
-                    @close-auto-focus="onMenuCloseAutoFocus">
-                  <DropdownMenuItem as="button" class="dropdown-item" @select="displayModal(lyric.id)">
-                    Edit
-                  </DropdownMenuItem>
-                  <DropdownMenuItem as="button" class="dropdown-item" @select="store.enable(lyric.id)">
-                    Enable
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenuPortal>
-            </DropdownMenuRoot>
-          </td>
-        </tr>
-      </tbody>
-    </table>
-  </main>
   </ToastProvider>
 </template>
-
-<style scoped>
-/* Bulma styles button.dropdown-item but does not strip the native button
-   chrome, so without this the menu items render as grey boxes. */
-button.dropdown-item {
-  background: none;
-  border: none;
-  font-family: inherit;
-  cursor: pointer;
-}
-
-/* Reka positions the menu with floating-ui, so Bulma's .dropdown-menu
-   (position: absolute; top: 100%) is deliberately not used. .dropdown-content
-   supplies only the panel look, and needs its own width floor. */
-.dropdown-content {
-  min-width: 10rem;
-}
-
-/* The artist cell is a row header for screen readers, but Bulma renders th
-   bold and darker. Keep the semantics without restyling the column. */
-tbody th {
-  font-weight: normal;
-  color: inherit;
-}
-</style>
-
-<!-- Not scoped: ToastViewport renders through an internal Teleport, so Vue's
-     scope id never reaches the element even though the class does. -->
-<style>
-.toast-viewport {
-  position: fixed;
-  bottom: 1rem;
-  right: 1rem;
-  z-index: 100;
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-  width: 24rem;
-  max-width: calc(100vw - 2rem);
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.toast-root {
-  margin: 0;
-}
-</style>
