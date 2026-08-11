@@ -4,6 +4,7 @@ import { RouterLink } from 'vue-router'
 import { useStore } from '@/stores/lyrics'
 import { findDuplicateGroups, suggestKeeper, fillableFields } from '@/lib/duplicates.js'
 import { diffLines, diffFields } from '@/lib/lineDiff.js'
+import { useConfirm } from '@/lib/useConfirm.js'
 import {
   AlertDialogRoot, AlertDialogPortal, AlertDialogOverlay, AlertDialogContent,
   AlertDialogTitle, AlertDialogDescription, AlertDialogCancel, AlertDialogAction,
@@ -19,7 +20,7 @@ const groups = computed(() => findDuplicateGroups(store.lyrics))
 const chosen = ref({})
 const keeperFor = (group) => chosen.value[group.key] ?? suggestKeeper(group.songs).id
 
-const pending = ref(null)
+const merge = useConfirm()
 
 function setToastOpen(open) {
   if (!open) store.error = ''
@@ -29,12 +30,11 @@ function planMerge(group) {
   const keepId = keeperFor(group)
   const keeper = group.songs.find((s) => s.id === keepId)
   const others = group.songs.filter((s) => s.id !== keepId)
-  pending.value = { group, keeper, others, fields: fillableFields(keeper, others) }
+  merge.ask({ group, keeper, others, fields: fillableFields(keeper, others) })
 }
 
 async function confirmMerge() {
-  const plan = pending.value
-  pending.value = null
+  const plan = merge.take()
   if (!plan) return
   await store.mergeSongs({
     keepId: plan.keeper.id,
@@ -193,7 +193,7 @@ const FIELD_LABEL = {
         </section>
       </main>
 
-      <AlertDialogRoot :open="!!pending" @update:open="open => { if (!open) pending = null }">
+      <AlertDialogRoot :open="!!merge.shown.value" @update:open="open => { if (!open) merge.dismiss() }">
         <AlertDialogPortal>
           <AlertDialogOverlay class="fixed inset-0 z-40 bg-ink/50" />
           <AlertDialogContent
@@ -202,13 +202,13 @@ const FIELD_LABEL = {
             <AlertDialogTitle class="font-display text-xl font-bold text-ink">Merge these songs?</AlertDialogTitle>
             <AlertDialogDescription as="div" class="mt-3 space-y-3 text-sm text-ink-soft">
               <p>
-                Keeping <strong class="font-semibold text-ink">{{ pending?.keeper.song }}</strong>
-                <template v-if="pending?.keeper.artist"> by {{ pending.keeper.artist }}</template>.
+                Keeping <strong class="font-semibold text-ink">{{ merge.shown.value?.keeper.song }}</strong>
+                <template v-if="merge.shown.value?.keeper.artist"> by {{ merge.shown.value.keeper.artist }}</template>.
               </p>
-              <div v-if="Object.keys(pending?.fields ?? {}).length">
+              <div v-if="Object.keys(merge.shown.value?.fields ?? {}).length">
                 <p class="text-ink">Filling in blanks from the others:</p>
                 <ul class="mt-1 space-y-0.5">
-                  <li v-for="(value, field) in pending.fields" :key="field">
+                  <li v-for="(value, field) in merge.shown.value.fields" :key="field">
                     <span class="font-label text-[11px] uppercase tracking-wider text-gold">{{ field }}</span>
                     → {{ value }}
                   </li>
@@ -217,7 +217,7 @@ const FIELD_LABEL = {
               <div>
                 <p class="text-red-800">Permanently deleting:</p>
                 <ul class="mt-1 space-y-0.5">
-                  <li v-for="other in pending?.others" :key="other.id">
+                  <li v-for="other in merge.shown.value?.others" :key="other.id">
                     • {{ other.song || '(no title)' }}
                     <template v-if="other.artist"> — {{ other.artist }}</template>
                     <span class="text-ink-faint">({{ (other.lyrics || '').length }} chars)</span>

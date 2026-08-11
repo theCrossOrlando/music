@@ -15,6 +15,7 @@ import {
   VisuallyHidden,
 } from 'reka-ui'
 import { normalize, looksLikeChordPro, parseSections } from '@/lib/lyricsFormat.js'
+import { useConfirm } from '@/lib/useConfirm.js'
 
 const store = useStore();
 const router = useRouter();
@@ -78,26 +79,22 @@ function restoreFocus(event) {
 // Suppress it only when an overlay is taking over; the plain items still
 // restore normally.
 function onMenuCloseAutoFocus(event) {
-  if (showModal.value || pendingDelete.value) event.preventDefault()
+  if (showModal.value || del.shown.value) event.preventDefault()
 }
 
 // Deleting is irreversible and there is no undo, so it is confirmed by name.
-// pendingDelete drives what the dialog shows; deleteTarget is a plain variable
-// holding what to actually delete. They are separate because confirming closes
-// the dialog first, which clears pendingDelete before the click handler reads
-// it — keeping only the ref made confirming a silent no-op.
-const pendingDelete = ref(null)
-let deleteTarget = null
+// useConfirm keeps the subject out of reactive state: confirming closes the
+// dialog first, and anything held in a ref is already gone by the time the
+// click handler runs.
+const del = useConfirm()
 
 function confirmDelete(lyric) {
   returnFocusTo.value = `row-menu-${lyric.id}`
-  deleteTarget = lyric
-  pendingDelete.value = lyric
+  del.ask(lyric)
 }
 
 async function reallyDelete() {
-  const target = deleteTarget
-  deleteTarget = null
+  const target = del.take()
   if (target) await store.deleteLyric(target.id)
 }
 
@@ -522,7 +519,7 @@ async function updateLyrics() {
       </DialogRoot>
 
       <!-- Delete confirmation. Irreversible, so it names the song. -->
-      <AlertDialogRoot :open="!!pendingDelete" @update:open="open => { if (!open) pendingDelete = null }">
+      <AlertDialogRoot :open="!!del.shown.value" @update:open="open => { if (!open) del.dismiss() }">
         <AlertDialogPortal>
           <AlertDialogOverlay class="fixed inset-0 z-40 bg-ink/50" />
           <AlertDialogContent
@@ -531,8 +528,8 @@ async function updateLyrics() {
             @close-auto-focus="restoreFocus">
             <AlertDialogTitle class="font-display text-xl font-bold text-ink">Delete this song?</AlertDialogTitle>
             <AlertDialogDescription class="mt-2 text-sm text-ink-soft">
-              <strong class="font-semibold text-ink">{{ pendingDelete?.song }}</strong>
-              <template v-if="pendingDelete?.artist"> by {{ pendingDelete.artist }}</template>
+              <strong class="font-semibold text-ink">{{ del.shown.value?.song }}</strong>
+              <template v-if="del.shown.value?.artist"> by {{ del.shown.value.artist }}</template>
               will be removed from the library permanently, along with its lyrics.
               This cannot be undone.
             </AlertDialogDescription>
