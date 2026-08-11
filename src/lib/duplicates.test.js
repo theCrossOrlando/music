@@ -115,7 +115,17 @@ describe('suggestKeeper', () => {
     expect(suggestKeeper([shadow, live]).id).toBe('1')
   })
 
+  it('prefers fuller lyrics over richer metadata, because metadata is fillable', () => {
+    const fullLyrics = song('1', '', 'It Is Well With My Soul',
+      { lyrics: 'verse one\nverse two\nchorus\nverse three\nverse four extra content here' })
+    const richMeta = song('2', 'Horatio G. Spafford', 'It Is Well With My Soul',
+      { lyrics: 'verse one\nverse two', ccliNumber: '25376', copyright: 'Public Domain' })
+    // Keeping the metadata row would delete two verses that cannot be recovered.
+    expect(suggestKeeper([richMeta, fullLyrics]).id).toBe('1')
+  })
+
   it('otherwise prefers the row carrying the most detail', () => {
+    // Same lyrics on both, so metadata breaks the tie.
     expect(suggestKeeper([
       song('1', '', 'It Is Well With My Soul'),
       song('2', 'Horatio G. Spafford', 'It Is Well With My Soul', { ccliNumber: '25376' }),

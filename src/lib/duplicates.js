@@ -192,16 +192,21 @@ export function findDuplicateGroups(songs) {
   return groups.sort((x, y) => y.confidence - x.confidence)
 }
 
-// Which row to keep by default: never one that is live in the set list, then
-// whichever carries the most information.
+// Which row to keep by default.
+//
+// Lyrics dominate, because a merge can copy a missing artist or CCLI number
+// across from a sibling but cannot recover lyrics from a row it deleted.
+// Preferring the metadata-rich copy would quietly drop whole verses whenever
+// the fuller lyrics happened to sit on the barer row — which is exactly the
+// shape of several groups in this library.
 export function suggestKeeper(songs) {
   const score = (s) => {
     let n = 0
-    if (s.enabled) n += 1000
-    if (s.artist?.trim()) n += 10
-    if (s.ccliNumber) n += 5
-    if (s.copyright) n += 5
-    n += Math.min((s.lyrics?.length ?? 0) / 1000, 5)
+    if (s.enabled) n += 100000
+    n += (s.lyrics?.length ?? 0)
+    if (s.artist?.trim()) n += 5
+    if (s.ccliNumber) n += 2
+    if (s.copyright) n += 2
     return n
   }
   return [...songs].sort((a, b) => score(b) - score(a))[0]

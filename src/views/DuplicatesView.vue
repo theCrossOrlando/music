@@ -3,6 +3,7 @@ import { computed, ref } from 'vue'
 import { RouterLink } from 'vue-router'
 import { useStore } from '@/stores/lyrics'
 import { findDuplicateGroups, suggestKeeper, fillableFields } from '@/lib/duplicates.js'
+import { diffLines, diffFields } from '@/lib/lineDiff.js'
 import {
   AlertDialogRoot, AlertDialogPortal, AlertDialogOverlay, AlertDialogContent,
   AlertDialogTitle, AlertDialogDescription, AlertDialogCancel, AlertDialogAction,
@@ -52,9 +53,32 @@ const confidenceLabel = (c) => (c >= 0.8 ? 'Very likely' : c >= 0.5 ? 'Likely' :
 const confidenceClass = (c) =>
   c >= 0.8 ? 'bg-brass text-white' : c >= 0.5 ? 'bg-brass-wash text-ink' : 'bg-red-50 text-red-800'
 
-const preview = (text, n = 90) => {
-  const clean = String(text ?? '').replace(/\s+/g, ' ').trim()
-  return clean.length > n ? `${clean.slice(0, n)}…` : clean
+// Compared against whichever row is currently selected to keep, so switching
+// the radio re-frames the diff rather than forcing a re-read.
+function comparison(group, song) {
+  const keeper = group.songs.find((s) => s.id === keeperFor(group))
+  if (!keeper || keeper.id === song.id) return null
+  const lyrics = diffLines(keeper.lyrics, song.lyrics)
+  return {
+    lyrics,
+    // Lines present here and absent from the keeper: exactly what deleting
+    // this row would throw away.
+    unique: lyrics.rows.filter((r) => r.status === 'added' && r.text.trim()).length,
+    fields: diffFields(keeper, song),
+  }
+}
+
+// The decision is "what do I lose if I delete this row", so the emphasis goes
+// on lines unique to this copy. Lines only in the keeper are muted — they are
+// not at risk.
+const rowClass = (status) => ({
+  same: 'text-ink-faint',
+  added: 'bg-amber-100 font-medium text-amber-950',
+  removed: 'text-ink-faint/60 line-through',
+}[status])
+
+const FIELD_LABEL = {
+  song: 'Title', artist: 'Artist', ccliNumber: 'CCLI #', copyright: 'Copyright',
 }
 </script>
 
@@ -116,9 +140,43 @@ const preview = (text, n = 90) => {
                     <span>{{ (song.lyrics || '').length }} chars</span>
                     <span v-if="song.ccliNumber">CCLI {{ song.ccliNumber }}</span>
                   </p>
-                  <p class="mt-2 line-clamp-2 text-[11px] leading-snug text-ink-faint">
-                    {{ preview(song.lyrics) || '(no lyrics)' }}
-                  </p>
+                  <template v-if="comparison(group, song)">
+                    <p v-if="comparison(group, song).lyrics.identical"
+                      class="mt-2 text-[11px] font-medium text-ink-soft">
+                      Lyrics identical — nothing lost by deleting this
+                    </p>
+                    <p v-else-if="comparison(group, song).unique"
+                      class="mt-2 text-[11px] font-medium text-amber-800">
+                      {{ comparison(group, song).unique }}
+                      {{ comparison(group, song).unique === 1 ? 'line' : 'lines' }}
+                      here {{ comparison(group, song).unique === 1 ? 'is' : 'are' }}
+                      not in the one you're keeping
+                    </p>
+                    <p v-else class="mt-2 text-[11px] font-medium text-ink-soft">
+                      Nothing here that the one you're keeping doesn't already have
+                    </p>
+                    <ul v-if="comparison(group, song).fields.length"
+                      class="mt-1 space-y-0.5 text-[11px] text-ink-soft">
+                      <li v-for="f in comparison(group, song).fields" :key="f.field">
+                        <span class="font-label uppercase tracking-wider text-gold">{{ FIELD_LABEL[f.field] || f.field }}</span>
+                        {{ f.b || '(blank)' }}
+                      </li>
+                    </ul>
+                  </template>
+                  <p v-else class="mt-2 text-[11px] font-medium text-ink-soft">Keeping this one</p>
+
+                  <div class="mt-2 max-h-56 overflow-y-auto rounded border border-brass-soft/60 bg-paper/60 p-2">
+                    <p v-if="!(song.lyrics || '').trim()" class="text-[11px] italic text-ink-faint">
+                      (no lyrics)
+                    </p>
+                    <template v-else-if="comparison(group, song)">
+                      <p v-for="(row, i) in comparison(group, song).lyrics.rows" :key="i"
+                        class="whitespace-pre-wrap px-1 font-mono text-[11px] leading-snug"
+                        :class="rowClass(row.status)">{{ row.text || ' ' }}</p>
+                    </template>
+                    <p v-else
+                      class="whitespace-pre-wrap font-mono text-[11px] leading-snug text-ink">{{ song.lyrics }}</p>
+                  </div>
                 </div>
               </div>
             </label>
