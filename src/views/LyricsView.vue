@@ -335,9 +335,14 @@ async function updateLyrics() {
         <section class="space-y-3">
           <div class="flex items-center justify-between gap-4">
             <h2 class="section-title">Library</h2>
-            <RouterLink to="/duplicates" class="text-xs text-gold underline underline-offset-2">
-              Find duplicates
-            </RouterLink>
+            <div class="flex gap-3 text-xs">
+              <RouterLink to="/match" class="text-gold underline underline-offset-2">
+                Match to CCLI
+              </RouterLink>
+              <RouterLink to="/duplicates" class="text-gold underline underline-offset-2">
+                Find duplicates
+              </RouterLink>
+            </div>
           </div>
           <div class="grid gap-2 sm:grid-cols-2">
             <div class="relative">

@@ -112,6 +112,23 @@ export const useStore = defineStore('lyrics', {
         'Could not remove the song from the set list'
       )
     },
+    // Record a CCLI decision. Batched so marking twenty liturgy rows is one
+    // write, not twenty round trips over church wifi.
+    recordDecisions(updates) {
+      const entries = Object.entries(updates ?? {})
+      if (!entries.length) return Promise.resolve(true)
+      return this.run(
+        () => {
+          const batch = writeBatch(db)
+          for (const [id, fields] of entries) {
+            batch.update(doc(db, 'lyrics', id), fields)
+          }
+          return batch.commit()
+        },
+        entries.length === 1 ? 'Could not save that' : 'Could not save those changes'
+      )
+    },
+
     // Merge: fill blanks on the keeper from its siblings, then delete them.
     // The writes are batched so a half-finished merge can't leave the library
     // with the keeper updated and the duplicates still present, or worse.

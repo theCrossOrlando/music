@@ -3,6 +3,7 @@ import HomeView from '../views/HomeView.vue'
 import LyricsView from '../views/LyricsView.vue'
 import DataView from '../views/DataView.vue'
 import DuplicatesView from '../views/DuplicatesView.vue'
+import MatchView from '../views/MatchView.vue'
 import { useStore } from '@/stores/lyrics';
 
 const router = createRouter({
@@ -17,6 +18,12 @@ const router = createRouter({
       path: '/lyrics',
       name: 'lyrics',
       component: LyricsView,
+      meta: { requiresAuth: true }
+    },
+    {
+      path: '/match',
+      name: 'match',
+      component: MatchView,
       meta: { requiresAuth: true }
     },
     {
