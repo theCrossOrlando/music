@@ -98,6 +98,15 @@ export function normalize(input, { structural = false } = {}) {
       }
       if (/^\s*\{\s*(?:end_of_\w+|eo[vcbt])\s*\}\s*$/i.test(line)) { converted += 1; return [] }
 
+      // Chord charts mark sections with {comment}/{c} rather than
+      // {start_of_*}. Dropping those as metadata silently loses the structure —
+      // and merges the section that followed into the one before it.
+      const comment = line.match(/^\s*\{\s*(?:comment|c|comment_italic|ci)\s*:\s*(.+?)\s*\}\s*$/i)
+      if (comment) {
+        converted += 1
+        return SECTION_LABEL.test(comment[1]) ? [titleCase(comment[1].trim())] : []
+      }
+
       // Metadata directives carry no lyric text, but they do carry the song
       // details — worth keeping rather than dropping on the floor.
       const meta = line.match(/^\s*\{\s*(title|t|artist|subtitle|st|ccli|key|tempo)\s*:\s*(.+?)\s*\}\s*$/i)
@@ -111,6 +120,13 @@ export function normalize(input, { structural = false } = {}) {
         return []
       }
       if (/^\s*\{[^}]*\}\s*$/.test(line)) { converted += 1; return [] }
+
+      // Bar/measure lines from a chord chart: "| G | D | Em | C |". Once the
+      // chords come out these are just pipes, and they are not lyrics.
+      if (/\|/.test(line) && !line.replace(INLINE_CHORD, '').replace(/[|\s.\/%-]/g, '')) {
+        strippedChords = true
+        return []
+      }
 
       if (FOOTER_LINE.test(line)) {
         const owner = line.match(COPYRIGHT_LINE)
@@ -126,6 +142,18 @@ export function normalize(input, { structural = false } = {}) {
       }
       return [line]
     })
+
+    // A label whose whole body was chords — a chord-chart intro, say — would
+    // otherwise render as a heading with nothing under it.
+    const kept = []
+    for (let i = 0; i < lines.length; i += 1) {
+      if (SECTION_LABEL.test(lines[i])) {
+        const next = lines.slice(i + 1).find((l) => l.trim())
+        if (next === undefined || SECTION_LABEL.test(next)) continue
+      }
+      kept.push(lines[i])
+    }
+    lines = kept
 
     if (converted) note(`Converted ${converted} ChordPro ${converted === 1 ? 'directive' : 'directives'}`)
     if (strippedChords) note('Removed chords')

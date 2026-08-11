@@ -103,6 +103,27 @@ describe('normalize — structural pass (what runs on paste)', () => {
     expect(text).toBe('Verse 1\nplaceholder lyric line')
   })
 
+  // WorshipTools Charts marks sections with {comment}/{c}, not {start_of_*}.
+  it('reads a chord chart from Charts', () => {
+    const input = [
+      '{title: Goodness Of God}', '{key: G}', '{tempo: 63}',
+      '{comment: Intro}', '| [G] | [D] | [Em] | [C] |',
+      '{c: Verse 1}', '[G]placeholder lyric [D]line',
+      '{comment: watch the drummer here}',
+      '{comment: Bridge}', '[Em]placeholder bridge line',
+    ].join('\n')
+    const { text, title } = normalize(input, structural)
+    expect(title).toBe('Goodness Of God')
+    // Comment-marked sections become labels; a band note does not; the
+    // chords-only intro leaves no empty heading behind.
+    expect(text).toBe('Verse 1\nplaceholder lyric line\n\nBridge\nplaceholder bridge line')
+  })
+
+  it('drops chord-chart bar lines', () => {
+    expect(normalize('| [G] | [D] | [Em] |\nplaceholder lyric line', structural).text)
+      .toBe('placeholder lyric line')
+  })
+
   it('tidies label casing and spacing', () => {
     expect(normalize('VERSE 1\nline\nCHORUS:\nline', structural).text)
       .toBe('Verse 1\nline\n\nChorus\nline')
