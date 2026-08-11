@@ -42,11 +42,11 @@ onBeforeUnmount(() => authListener())
   <main class="flex min-h-screen items-center justify-center px-4 py-12">
     <div class="w-full max-w-sm space-y-6 text-center">
       <div class="space-y-1">
-        <h1 class="text-xl font-semibold tracking-tight text-slate-900">theCross Music</h1>
-        <p class="text-sm text-slate-500">Worship set administration</p>
+        <h1 class="font-display text-3xl font-bold tracking-tight text-ink">theCross Music</h1>
+        <p class="font-label text-xs uppercase tracking-wider text-ink-soft">Worship set administration</p>
       </div>
 
-      <div v-if="error" class="rounded-md border border-red-200 bg-red-50 p-3 text-left text-sm text-red-800">
+      <div v-if="error" class="rounded-md border border-red-800/25 bg-red-50 p-3 text-left text-sm text-red-800">
         {{ error }}
       </div>
 
@@ -56,7 +56,7 @@ onBeforeUnmount(() => authListener())
 
       <template v-else>
         <div v-if="!store.isAdmin"
-          class="space-y-2 rounded-md border border-amber-200 bg-amber-50 p-4 text-left text-sm text-amber-900">
+          class="space-y-2 rounded-md border border-brass bg-brass-wash p-4 text-left text-sm text-ink">
           <p>
             You are signed in as <strong class="font-semibold">{{ loggedinUser.email }}</strong>, but that
             account is not set up as an administrator of this site.

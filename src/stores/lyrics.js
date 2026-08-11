@@ -9,6 +9,7 @@ import {
   updateDoc,
   writeBatch,
   deleteField,
+  deleteDoc,
   addDoc
 } from 'firebase/firestore'
 import { getAuth, onAuthStateChanged, signOut } from 'firebase/auth'
@@ -107,6 +108,14 @@ export const useStore = defineStore('lyrics', {
           order: deleteField()
         }),
         'Could not remove the song from the set list'
+      )
+    },
+    // Irreversible, and the rules already cover it: `allow write` on /lyrics
+    // spans create, update and delete. Callers are expected to confirm first.
+    deleteLyric(id) {
+      return this.run(
+        () => deleteDoc(doc(db, 'lyrics', id)),
+        'Could not delete the song'
       )
     },
     updateScripture(id) {

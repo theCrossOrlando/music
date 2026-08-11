@@ -1,13 +1,20 @@
 @import "tailwindcss";
 
-/* Slate neutrals with an emerald primary, which lands close to the turquoise
-   Bulma used, so the app still reads as the same product. */
+/* Palette and type measured from https://www.thecrossorlando.org/lyrics/ so the
+   admin tool reads as the same property as the page it feeds:
+   paper #F9F7F2, ink #212529, brass #D5AE43 (the 1px song-card border),
+   Cardo 700 for song titles, Arvo for sub-headings. */
 @theme {
-  --color-brand-50: oklch(0.979 0.021 166.113);
-  --color-brand-100: oklch(0.95 0.052 163.051);
-  --color-brand-500: oklch(0.696 0.17 162.48);
-  --color-brand-600: oklch(0.596 0.145 163.225);
-  --color-brand-700: oklch(0.508 0.118 165.612);
+  --color-paper: #f9f7f2;
+  --color-ink: #212529;
+  --color-ink-soft: #5b6169;
+  --color-ink-faint: #8a9099;
+  --color-brass: #d5ae43;
+  --color-brass-soft: #ecdcae;
+  --color-brass-wash: #fbf6e8;
+
+  --font-display: Cardo, Georgia, "Times New Roman", serif;
+  --font-label: Arvo, Georgia, serif;
 }
 
 @layer base {
@@ -16,68 +23,70 @@
   }
 
   body {
-    @apply min-h-screen bg-slate-50 text-slate-800 antialiased;
+    @apply min-h-screen bg-paper text-ink antialiased;
   }
-
-  /* Nothing here relies on a fixed body font-size, and the old scaffolding
-     centred the whole page vertically above 1024px. Content starts at the top. */
 }
 
 @layer components {
   .btn {
-    @apply inline-flex items-center justify-center gap-2 rounded-md border border-slate-300
-           bg-white px-3 py-2 text-sm font-medium text-slate-700 shadow-xs
-           transition-colors hover:bg-slate-100
-           focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600
+    @apply inline-flex items-center justify-center gap-2 rounded-md border border-brass-soft
+           bg-white px-3 py-2 text-sm font-medium text-ink transition-colors
+           hover:border-brass hover:bg-brass-wash
+           focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brass
            disabled:cursor-not-allowed disabled:opacity-50;
   }
 
+  /* Ink rather than brass, echoing the boxed black wordmark. Brass stays an
+     accent — filling with it turns the page into a highlighter. */
   .btn-primary {
-    @apply border-transparent bg-brand-600 text-white hover:bg-brand-700;
+    @apply border-ink bg-ink text-white hover:border-ink hover:bg-black;
+  }
+
+  .btn-danger {
+    @apply border-red-800/30 bg-white text-red-800 hover:border-red-800/60 hover:bg-red-50;
   }
 
   .btn-sm {
     @apply px-2.5 py-1.5 text-xs;
   }
 
-  /* Square, for the icon-only row and toolbar buttons. */
   .btn-icon {
     @apply px-2.5;
   }
 
   .input {
-    @apply block w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm
-           text-slate-900 shadow-xs placeholder:text-slate-400
-           focus:border-brand-600 focus:outline-2 focus:outline-offset-0 focus:outline-brand-600;
+    @apply block w-full rounded-md border border-brass-soft bg-white px-3 py-2 text-sm
+           text-ink placeholder:text-ink-faint
+           focus:border-brass focus:outline-2 focus:outline-offset-0 focus:outline-brass;
   }
 
+  /* White on paper with a hairline brass edge and no shadow, exactly how the
+     public page draws a song card. */
   .card {
-    @apply rounded-lg border border-slate-200 bg-white shadow-xs;
+    @apply rounded-md border border-brass-soft bg-white;
   }
 
   .section-title {
-    @apply text-lg font-semibold tracking-tight text-slate-900;
+    @apply font-display text-2xl font-bold tracking-tight text-ink;
   }
 
-  /* Tables scroll sideways rather than squashing on a phone. Repeats .card's
-     utilities rather than @apply-ing it: v4's @apply takes real utilities, not
-     other component classes. */
   .table-wrap {
-    @apply overflow-x-auto rounded-lg border border-slate-200 bg-white shadow-xs;
+    @apply overflow-x-auto rounded-md border border-brass-soft bg-white;
   }
 
   .table {
     @apply w-full border-collapse text-left text-sm;
   }
 
+  /* Arvo uppercase — the site's label voice. */
   .table thead th {
-    @apply border-b border-slate-200 bg-slate-50 px-4 py-2.5 text-xs font-semibold
-           uppercase tracking-wide text-slate-500;
+    @apply border-b border-brass-soft bg-brass-wash px-4 py-2.5 font-label text-[11px]
+           font-normal uppercase tracking-wider text-ink-soft;
   }
 
   .table tbody td,
   .table tbody th {
-    @apply border-b border-slate-100 px-4 py-2.5 font-normal text-slate-700;
+    @apply border-b border-brass-soft/50 px-4 py-2.5 font-normal text-ink;
   }
 
   .table tbody tr:last-child td,
@@ -86,17 +95,20 @@
   }
 
   .table tbody tr:hover {
-    @apply bg-slate-50;
+    @apply bg-brass-wash/60;
   }
 
-  /* Reka renders these as real buttons, so they need the chrome stripped. */
   .menu-item {
     @apply flex w-full cursor-pointer items-center rounded px-3 py-2 text-left text-sm
-           text-slate-700 select-none
-           data-highlighted:bg-slate-100 data-highlighted:text-slate-900 focus:outline-none;
+           text-ink select-none
+           data-highlighted:bg-brass-wash data-highlighted:text-ink focus:outline-none;
+  }
+
+  .menu-item-danger {
+    @apply text-red-800 data-highlighted:bg-red-50 data-highlighted:text-red-900;
   }
 
   .menu-panel {
-    @apply z-50 min-w-40 rounded-lg border border-slate-200 bg-white p-1 shadow-lg;
+    @apply z-50 min-w-44 rounded-md border border-brass-soft bg-white p-1 shadow-lg;
   }
 }

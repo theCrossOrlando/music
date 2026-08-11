@@ -6,5 +6,5 @@ store.init()
 </script>
 
 <template>
-  <pre class="overflow-x-auto p-4 font-mono text-xs text-slate-700">{{ store.activeLyrics }}</pre>
+  <pre class="overflow-x-auto p-4 font-mono text-xs text-ink">{{ store.activeLyrics }}</pre>
 </template>

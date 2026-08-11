@@ -7,7 +7,9 @@ import {
   DialogRoot, DialogPortal, DialogOverlay, DialogContent, DialogTitle,
   DialogDescription, DialogClose,
   DropdownMenuRoot, DropdownMenuTrigger, DropdownMenuPortal,
-  DropdownMenuContent, DropdownMenuItem,
+  DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator,
+  AlertDialogRoot, AlertDialogPortal, AlertDialogOverlay, AlertDialogContent,
+  AlertDialogTitle, AlertDialogDescription, AlertDialogCancel, AlertDialogAction,
   ToastProvider, ToastRoot, ToastTitle, ToastDescription, ToastClose,
   ToastViewport,
   VisuallyHidden,
@@ -52,22 +54,48 @@ function setToastOpen(open) {
 // control that stands in for the origin and restore to that instead.
 const returnFocusTo = ref(null)
 
-function restoreFocus(event) {
+function focusKey(key) {
   // Queried by data attribute, not id: DropdownMenuTrigger assigns its own id
   // and silently overrides any we set, so getElementById never matched.
-  const target = returnFocusTo.value
-    && document.querySelector(`[data-focus-key="${returnFocusTo.value}"]`)
+  return key && document.querySelector(`[data-focus-key="${key}"]`)
+}
+
+function restoreFocus(event) {
+  // After a delete the originating row is gone, so fall back to the one control
+  // that always exists rather than dropping focus on <body>.
+  const target = focusKey(returnFocusTo.value) || focusKey('add-song')
   if (target) {
     event.preventDefault()
     target.focus()
   }
 }
 
-// Choosing "Edit" opens the dialog, but the menu closes a beat later and its
-// own focus restoration yanks focus back out to the trigger. Suppress it only
-// when the dialog is taking over; "Enable"/"Disable" still restore normally.
+// Choosing "Edit" or "Delete" opens an overlay, but the menu closes a beat
+// later and its own focus restoration yanks focus back out to the trigger.
+// Suppress it only when an overlay is taking over; the plain items still
+// restore normally.
 function onMenuCloseAutoFocus(event) {
-  if (showModal.value) event.preventDefault()
+  if (showModal.value || pendingDelete.value) event.preventDefault()
+}
+
+// Deleting is irreversible and there is no undo, so it is confirmed by name.
+// pendingDelete drives what the dialog shows; deleteTarget is a plain variable
+// holding what to actually delete. They are separate because confirming closes
+// the dialog first, which clears pendingDelete before the click handler reads
+// it — keeping only the ref made confirming a silent no-op.
+const pendingDelete = ref(null)
+let deleteTarget = null
+
+function confirmDelete(lyric) {
+  returnFocusTo.value = `row-menu-${lyric.id}`
+  deleteTarget = lyric
+  pendingDelete.value = lyric
+}
+
+async function reallyDelete() {
+  const target = deleteTarget
+  deleteTarget = null
+  if (target) await store.deleteLyric(target.id)
 }
 
 function displayModal(id) {
@@ -107,12 +135,12 @@ async function updateLyrics() {
 <template>
   <ToastProvider>
     <div class="min-h-screen">
-      <header class="sticky top-0 z-30 border-b border-slate-200 bg-white/90 backdrop-blur">
+      <header class="sticky top-0 z-30 border-b border-brass-soft bg-paper/90 backdrop-blur">
         <div class="mx-auto flex max-w-5xl items-center gap-4 px-4 py-3 sm:px-6">
-          <h1 class="text-sm font-semibold tracking-tight text-slate-900">theCross Music</h1>
-          <span v-if="store.isLoading" class="text-xs text-slate-500">Loading…</span>
+          <h1 class="font-display text-base font-bold tracking-tight text-ink">theCross Music</h1>
+          <span v-if="store.isLoading" class="text-xs text-ink-soft">Loading…</span>
           <div class="ml-auto flex items-center gap-3">
-            <span class="hidden text-xs text-slate-500 sm:inline">{{ store.authedUser.email }}</span>
+            <span class="hidden text-xs text-ink-soft sm:inline">{{ store.authedUser.email }}</span>
             <button class="btn btn-sm" @click="signOut">Sign out</button>
           </div>
         </div>
@@ -124,7 +152,7 @@ async function updateLyrics() {
           <h2 class="section-title">Scripture</h2>
           <div v-for="scripture in store.scripture" :key="scripture.id" class="flex gap-2">
             <div class="relative flex-1">
-              <span class="pointer-events-none absolute inset-y-0 left-3 flex items-center text-slate-400">
+              <span class="pointer-events-none absolute inset-y-0 left-3 flex items-center text-brass">
                 <font-awesome-icon icon="book" />
               </span>
               <input type="text" class="input pl-9" v-model="scripture.verse" placeholder="Scripture"
@@ -139,7 +167,7 @@ async function updateLyrics() {
           <div class="flex items-center justify-between gap-4">
             <div>
               <h2 class="section-title">Set list</h2>
-              <p class="text-xs text-slate-500">Drag to reorder. This is the order they play in.</p>
+              <p class="text-xs text-ink-soft">Drag to reorder. This is the order they play in.</p>
             </div>
             <button data-focus-key="add-song" class="btn btn-primary shrink-0 whitespace-nowrap"
               @click="displayModal()">
@@ -161,7 +189,7 @@ async function updateLyrics() {
                 <template #item="{ element }">
                   <tr class="group">
                     <th scope="row">
-                      <span class="drag-handle mr-2 cursor-grab text-slate-300 group-hover:text-slate-400"
+                      <span class="drag-handle mr-2 cursor-grab text-brass-soft group-hover:text-brass"
                         aria-hidden="true">⠿</span>{{ element.artist }}
                     </th>
                     <td>{{ element.song }}</td>
@@ -181,6 +209,11 @@ async function updateLyrics() {
                             <DropdownMenuItem as="button" class="menu-item" @select="store.disable(element.id)">
                               Remove from set list
                             </DropdownMenuItem>
+                            <DropdownMenuSeparator class="my-1 h-px bg-brass-soft" />
+                            <DropdownMenuItem as="button" class="menu-item menu-item-danger"
+                              @select="confirmDelete(element)">
+                              Delete song…
+                            </DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenuPortal>
                       </DropdownMenuRoot>
@@ -189,7 +222,7 @@ async function updateLyrics() {
                 </template>
               </draggable>
             </table>
-            <p v-if="!store.activeLyrics.length" class="px-4 py-8 text-center text-sm text-slate-500">
+            <p v-if="!store.activeLyrics.length" class="px-4 py-8 text-center text-sm text-ink-soft">
               No songs in the set list yet. Add one from the library below.
             </p>
           </div>
@@ -200,14 +233,14 @@ async function updateLyrics() {
           <h2 class="section-title">Library</h2>
           <div class="grid gap-2 sm:grid-cols-2">
             <div class="relative">
-              <span class="pointer-events-none absolute inset-y-0 left-3 flex items-center text-slate-400">
+              <span class="pointer-events-none absolute inset-y-0 left-3 flex items-center text-brass">
                 <font-awesome-icon icon="music" />
               </span>
               <input class="input pl-9" type="search" v-model="store.search.song" placeholder="Search song"
                 aria-label="Search song">
             </div>
             <div class="relative">
-              <span class="pointer-events-none absolute inset-y-0 left-3 flex items-center text-slate-400">
+              <span class="pointer-events-none absolute inset-y-0 left-3 flex items-center text-brass">
                 <font-awesome-icon icon="user" />
               </span>
               <input class="input pl-9" type="search" v-model="store.search.artist" placeholder="Search artist"
@@ -244,6 +277,11 @@ async function updateLyrics() {
                           <DropdownMenuItem as="button" class="menu-item" @select="store.enable(lyric.id)">
                             Add to set list
                           </DropdownMenuItem>
+                          <DropdownMenuSeparator class="my-1 h-px bg-brass-soft" />
+                          <DropdownMenuItem as="button" class="menu-item menu-item-danger"
+                            @select="confirmDelete(lyric)">
+                            Delete song…
+                          </DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenuPortal>
                     </DropdownMenuRoot>
@@ -251,7 +289,7 @@ async function updateLyrics() {
                 </tr>
               </tbody>
             </table>
-            <p v-if="!store.filteredLyrics.length" class="px-4 py-8 text-center text-sm text-slate-500">
+            <p v-if="!store.filteredLyrics.length" class="px-4 py-8 text-center text-sm text-ink-soft">
               {{ store.search.song || store.search.artist
                 ? 'No songs match that search.'
                 : 'The library is empty.' }}
@@ -263,12 +301,12 @@ async function updateLyrics() {
       <!-- Edit / add song -->
       <DialogRoot v-model:open="showModal">
         <DialogPortal>
-          <DialogOverlay class="fixed inset-0 z-40 bg-slate-900/50" />
+          <DialogOverlay class="fixed inset-0 z-40 bg-ink/50" />
           <DialogContent
             class="fixed inset-x-0 top-1/2 z-50 mx-auto w-[calc(100%-2rem)] max-w-2xl -translate-y-1/2
-                   rounded-lg bg-white p-6 shadow-xl focus:outline-none"
+                   rounded-md border border-brass-soft bg-white p-6 shadow-xl focus:outline-none"
             @close-auto-focus="restoreFocus">
-            <DialogTitle class="text-base font-semibold text-slate-900">
+            <DialogTitle class="font-display text-xl font-bold text-ink">
               {{ edit.id ? 'Edit song' : 'Add a song' }}
             </DialogTitle>
             <VisuallyHidden as-child>
@@ -293,9 +331,34 @@ async function updateLyrics() {
         </DialogPortal>
       </DialogRoot>
 
+      <!-- Delete confirmation. Irreversible, so it names the song. -->
+      <AlertDialogRoot :open="!!pendingDelete" @update:open="open => { if (!open) pendingDelete = null }">
+        <AlertDialogPortal>
+          <AlertDialogOverlay class="fixed inset-0 z-40 bg-ink/50" />
+          <AlertDialogContent
+            class="fixed inset-x-0 top-1/2 z-50 mx-auto w-[calc(100%-2rem)] max-w-md -translate-y-1/2
+                   rounded-md border border-brass-soft bg-white p-6 shadow-xl focus:outline-none"
+            @close-auto-focus="restoreFocus">
+            <AlertDialogTitle class="font-display text-xl font-bold text-ink">Delete this song?</AlertDialogTitle>
+            <AlertDialogDescription class="mt-2 text-sm text-ink-soft">
+              <strong class="font-semibold text-ink">{{ pendingDelete?.song }}</strong>
+              <template v-if="pendingDelete?.artist"> by {{ pendingDelete.artist }}</template>
+              will be removed from the library permanently, along with its lyrics.
+              This cannot be undone.
+            </AlertDialogDescription>
+            <div class="mt-5 flex justify-end gap-2">
+              <AlertDialogCancel as="button" class="btn">Cancel</AlertDialogCancel>
+              <AlertDialogAction as="button" class="btn btn-danger" @click="reallyDelete">
+                Delete permanently
+              </AlertDialogAction>
+            </div>
+          </AlertDialogContent>
+        </AlertDialogPortal>
+      </AlertDialogRoot>
+
       <!-- Background write failures -->
       <ToastRoot
-        class="card flex items-start gap-3 border-red-200 bg-red-50 p-4"
+        class="flex items-start gap-3 rounded-md border border-red-800/25 bg-red-50 p-4"
         :open="!!store.error"
         :duration="8000"
         @update:open="setToastOpen"
