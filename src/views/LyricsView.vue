@@ -104,6 +104,14 @@ const pasteChanges = ref([])
 const beforePaste = ref(null)
 const showPreview = ref(false)
 
+// Hints so the normalizer can drop a title or artist line that only repeats
+// fields the record already has.
+const importHints = () => ({
+  structural: true,
+  knownTitle: edit.value.song,
+  knownArtist: edit.value.artist,
+})
+
 // Everything imported lands here, whether it arrived by paste, clipboard button
 // or dropped file — one place that decides how a normalize() result fills the form.
 function applyImport(result, previous) {
@@ -127,7 +135,7 @@ async function importFromClipboard() {
   try {
     const clip = await navigator.clipboard.readText()
     if (!clip.trim()) { importError.value = 'The clipboard is empty.'; return }
-    applyImport(normalize(clip, { structural: true }), edit.value.lyrics)
+    applyImport(normalize(clip, importHints()), edit.value.lyrics)
   } catch {
     importError.value = 'Could not read the clipboard — paste into the box instead.'
   }
@@ -137,7 +145,7 @@ async function importFromClipboard() {
 async function importFile(file) {
   if (!file) return
   importError.value = ''
-  applyImport(normalize(await file.text(), { structural: true }), edit.value.lyrics)
+  applyImport(normalize(await file.text(), importHints()), edit.value.lyrics)
 }
 
 function onDrop(event) {
@@ -151,15 +159,11 @@ function onLyricsPaste(event) {
 
   const field = event.target
   const merged = field.value.slice(0, field.selectionStart) + pasted + field.value.slice(field.selectionEnd)
-  const { text, changes, ccliNumber, copyright } = normalize(merged, { structural: true })
-  if (!changes.length) return
+  const result = normalize(merged, importHints())
+  if (!result.changes.length) return
 
   event.preventDefault()
-  beforePaste.value = field.value
-  edit.value.lyrics = text
-  if (ccliNumber && !edit.value.ccliNumber) edit.value.ccliNumber = ccliNumber
-  if (copyright && !edit.value.copyright) edit.value.copyright = copyright
-  pasteChanges.value = changes
+  applyImport(result, field.value)
 }
 
 function undoPaste() {
@@ -170,7 +174,7 @@ function undoPaste() {
 }
 
 function tidyNow() {
-  applyImport(normalize(edit.value.lyrics, { structural: true }), edit.value.lyrics)
+  applyImport(normalize(edit.value.lyrics, importHints()), edit.value.lyrics)
 }
 
 // We can start the search here and hand off, but the app never queries

@@ -124,6 +124,39 @@ describe('normalize — structural pass (what runs on paste)', () => {
       .toBe('placeholder lyric line')
   })
 
+  // A SongSelect copy wraps the lyrics: title first line, artist last.
+  // Both duplicate fields the public page already renders separately.
+  it('strips the title off the top and the artist off the bottom', () => {
+    const input = [
+      'Give Me Jesus', '', 'Verse 1', 'placeholder lyric line',
+      'Give me Jesus', '', 'Jeremy Camp',
+    ].join('\n')
+    const { text, changes } = normalize(input,
+      { structural: true, knownTitle: 'Give Me Jesus', knownArtist: 'Jeremy Camp' })
+    // The lyric line "Give me Jesus" survives — only the heading goes.
+    expect(text).toBe('Verse 1\nplaceholder lyric line\nGive me Jesus')
+    expect(changes).toContain('Removed the repeated title')
+    expect(changes).toContain('Removed the repeated artist')
+  })
+
+  it('keeps a first line that is genuinely the opening lyric', () => {
+    // Title-as-first-sung-line, with no blank or label after it.
+    const input = 'Amazing grace\nhow sweet the sound\nthat saved a wretch like me'
+    expect(normalize(input, { structural: true, knownTitle: 'Amazing Grace' }).text)
+      .toBe(input)
+  })
+
+  it('strips a legacy leading title with no section labels', () => {
+    const input = 'Holy, Holy, Holy\n\nplaceholder lyric line\nplaceholder second line'
+    expect(normalize(input, { structural: true, knownTitle: 'Holy, Holy, Holy' }).text)
+      .toBe('placeholder lyric line\nplaceholder second line')
+  })
+
+  it('does nothing without hints', () => {
+    const input = 'Give Me Jesus\n\nVerse 1\nplaceholder lyric line\n\nJeremy Camp'
+    expect(normalize(input, { structural: true }).text).toBe(input)
+  })
+
   it('tidies label casing and spacing', () => {
     expect(normalize('VERSE 1\nline\nCHORUS:\nline', structural).text)
       .toBe('Verse 1\nline\n\nChorus\nline')

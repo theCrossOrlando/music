@@ -52,14 +52,17 @@ function isChordOnlyLine(line) {
 
 /**
  * @param {string} input
- * @param {{ structural?: boolean }} options
+ * @param {{ structural?: boolean, knownTitle?: string, knownArtist?: string }} options
+ *   knownTitle/knownArtist: what the record already says this song is. A
+ *   SongSelect copy wraps the lyrics with the title on the first line and the
+ *   artist on the last; both duplicate fields the page already renders.
  *   structural: also convert ChordPro, strip chords and footers, and rewrite
  *   section labels. Off by default so an ordinary save can never restructure
  *   something a human formatted by hand.
  * @returns {{ text: string, changes: string[], ccliNumber: string|null,
  *             copyright: string|null, title: string|null, artist: string|null }}
  */
-export function normalize(input, { structural = false } = {}) {
+export function normalize(input, { structural = false, knownTitle = '', knownArtist = '' } = {}) {
   const changes = []
   let ccliNumber = null
   let copyright = null
@@ -142,6 +145,35 @@ export function normalize(input, { structural = false } = {}) {
       }
       return [line]
     })
+
+    // Strip the title off the top and the artist off the bottom. A SongSelect
+    // copy includes both, and they duplicate what the page already shows above
+    // and below the lyrics.
+    const same = (a, b) => {
+      const n = (v) => String(v ?? '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim()
+      return Boolean(n(a)) && n(a) === n(b)
+    }
+    const titleHint = knownTitle || title
+    const artistHint = knownArtist || artist
+
+    const firstIdx = lines.findIndex((l) => l.trim())
+    if (firstIdx !== -1 && same(lines[firstIdx], titleHint)) {
+      // Only when it reads as a heading — followed by a blank line or a section
+      // label. Plenty of songs legitimately open with their own title as the
+      // first sung line.
+      const next = lines[firstIdx + 1]
+      if (next === undefined || !next.trim() || SECTION_LABEL.test(next)) {
+        lines.splice(firstIdx, 1)
+        note('Removed the repeated title')
+      }
+    }
+
+    let lastIdx = -1
+    for (let i = lines.length - 1; i >= 0; i -= 1) { if (lines[i].trim()) { lastIdx = i; break } }
+    if (lastIdx !== -1 && same(lines[lastIdx], artistHint)) {
+      lines.splice(lastIdx, 1)
+      note('Removed the repeated artist')
+    }
 
     // A label whose whole body was chords — a chord-chart intro, say — would
     // otherwise render as a heading with nothing under it.

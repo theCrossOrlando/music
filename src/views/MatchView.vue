@@ -66,7 +66,11 @@ function onPaste(event) {
   if (!text?.trim()) return
   event.preventDefault()
   pasted.value = text
-  const result = normalize(text, { structural: true })
+  const result = normalize(text, {
+    structural: true,
+    knownTitle: current.value?.song.song,
+    knownArtist: current.value?.song.artist,
+  })
   const useful = result.ccliNumber || result.copyright || result.text?.trim()
   parsed.value = useful ? result : { ...result, empty: true }
 }
