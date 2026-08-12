@@ -76,6 +76,10 @@ export function decisionFields(status, extra = {}) {
   if (status === STATUS.MATCHED) {
     if (extra.ccliNumber) fields.ccliNumber = String(extra.ccliNumber).trim()
     if (extra.copyright) fields.copyright = String(extra.copyright).trim()
+    // Only ever written when the caller opted in and there is something to
+    // write. An empty or whitespace body must never overwrite real lyrics —
+    // that would silently wipe a song during a metadata sweep.
+    if (String(extra.lyrics ?? '').trim()) fields.lyrics = String(extra.lyrics).trim()
   }
   return fields
 }

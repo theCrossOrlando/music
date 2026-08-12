@@ -113,6 +113,22 @@ describe('decisionFields', () => {
       .toEqual({ ccliStatus: STATUS.MATCHED, ccliNumber: '7117726', copyright: '2018 Bethel' })
   })
 
+  it('writes lyrics when the caller opts in', () => {
+    expect(decisionFields(STATUS.MATCHED, { ccliNumber: '1', lyrics: 'Verse 1\nline' }))
+      .toEqual({ ccliStatus: STATUS.MATCHED, ccliNumber: '1', lyrics: 'Verse 1\nline' })
+  })
+
+  it('refuses to overwrite lyrics with an empty body', () => {
+    // A blank paste during a sweep must not wipe a song.
+    expect(decisionFields(STATUS.MATCHED, { ccliNumber: '1', lyrics: '   \n  ' }))
+      .toEqual({ ccliStatus: STATUS.MATCHED, ccliNumber: '1' })
+  })
+
+  it('leaves lyrics alone when not opted in', () => {
+    expect(decisionFields(STATUS.MATCHED, { ccliNumber: '1' }))
+      .toEqual({ ccliStatus: STATUS.MATCHED, ccliNumber: '1' })
+  })
+
   it('never writes empty values over existing ones', () => {
     expect(decisionFields(STATUS.MATCHED, { ccliNumber: '', copyright: '' }))
       .toEqual({ ccliStatus: STATUS.MATCHED })

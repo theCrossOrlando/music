@@ -4,6 +4,7 @@ import { RouterLink } from 'vue-router'
 import { useStore } from '@/stores/lyrics'
 import { normalize } from '@/lib/lyricsFormat.js'
 import { STATUS, buildQueue, progress, decisionFields } from '@/lib/matching.js'
+import { diffLines } from '@/lib/lineDiff.js'
 import {
   ToastProvider, ToastRoot, ToastTitle, ToastDescription, ToastClose, ToastViewport,
 } from 'reka-ui'
@@ -22,6 +23,28 @@ const current = computed(() => queue.value[0] ?? null)
 const pasted = ref('')
 const parsed = ref(null)
 const busy = ref(false)
+// On by default: the point of the diff is to make replacing lyrics safe, not
+// to discourage it. The toggle is for the songs where the stored arrangement
+// is deliberate — a repeated chorus, a verse the band skips.
+const replaceLyrics = ref(true)
+
+// Stored vs incoming. Amber marks lines the SongSelect version has that yours
+// does not; muted strikethrough marks lines of yours it would drop.
+const lyricsDiff = computed(() => {
+  if (!current.value || !parsed.value?.text?.trim()) return null
+  const d = diffLines(current.value.song.lyrics, parsed.value.text)
+  return {
+    ...d,
+    gained: d.rows.filter((r) => r.status === 'added' && r.text.trim()).length,
+    lost: d.rows.filter((r) => r.status === 'removed' && r.text.trim()).length,
+  }
+})
+
+const rowClass = (status) => ({
+  same: 'text-ink-faint',
+  added: 'bg-amber-100 font-medium text-amber-950',
+  removed: 'bg-red-50 text-red-900 line-through decoration-red-300',
+}[status])
 
 // Multi-select for the mechanical buckets. Twenty liturgy rows should not cost
 // twenty round trips.
@@ -44,12 +67,14 @@ function onPaste(event) {
   event.preventDefault()
   pasted.value = text
   const result = normalize(text, { structural: true })
-  parsed.value = result.ccliNumber || result.copyright ? result : { ...result, empty: true }
+  const useful = result.ccliNumber || result.copyright || result.text?.trim()
+  parsed.value = useful ? result : { ...result, empty: true }
 }
 
 function clearPaste() {
   pasted.value = ''
   parsed.value = null
+  replaceLyrics.value = true
 }
 
 async function decide(status, extra) {
@@ -73,6 +98,7 @@ async function saveMatch() {
   await decide(STATUS.MATCHED, {
     ccliNumber: parsed.value?.ccliNumber,
     copyright: parsed.value?.copyright,
+    lyrics: replaceLyrics.value ? parsed.value?.text : undefined,
   })
 }
 
@@ -142,9 +168,30 @@ function setToastOpen(open) {
               can carry its own copyright.
             </p>
 
-            <div class="mt-4 max-h-40 overflow-y-auto rounded border border-brass-soft/60 bg-paper/60 p-2">
-              <p class="whitespace-pre-wrap font-mono text-[11px] leading-snug text-ink-soft">{{
-                current.song.lyrics || '(no lyrics)' }}</p>
+            <div class="mt-4">
+              <div class="mb-1 flex flex-wrap items-baseline justify-between gap-2">
+                <p class="font-label text-[11px] uppercase tracking-wider text-gold">
+                  {{ lyricsDiff ? 'Stored lyrics vs SongSelect' : 'Stored lyrics' }}
+                </p>
+                <p v-if="lyricsDiff" class="text-xs"
+                  :class="lyricsDiff.identical ? 'text-ink-soft' : 'text-amber-800'">
+                  <template v-if="lyricsDiff.identical">Identical — nothing would change</template>
+                  <template v-else>
+                    <span v-if="lyricsDiff.gained">+{{ lyricsDiff.gained }} added</span>
+                    <span v-if="lyricsDiff.gained && lyricsDiff.lost"> · </span>
+                    <span v-if="lyricsDiff.lost">−{{ lyricsDiff.lost }} of yours dropped</span>
+                  </template>
+                </p>
+              </div>
+              <div class="max-h-72 overflow-y-auto rounded border border-brass-soft bg-white p-2">
+                <template v-if="lyricsDiff">
+                  <p v-for="(row, i) in lyricsDiff.rows" :key="i"
+                    class="whitespace-pre-wrap px-1 font-mono text-xs leading-snug"
+                    :class="rowClass(row.status)">{{ row.text || ' ' }}</p>
+                </template>
+                <p v-else class="whitespace-pre-wrap font-mono text-xs leading-snug text-ink">{{
+                  current.song.lyrics || '(no lyrics)' }}</p>
+              </div>
             </div>
           </section>
 
@@ -156,8 +203,8 @@ function setToastOpen(open) {
               </a>
             </div>
             <p class="text-xs text-ink-soft">
-              Open it there, use Export → Copy, then paste below. Only the CCLI number and
-              copyright are taken — the lyrics here are left alone.
+              Open it there, use Export → Copy, then paste below. The CCLI number, copyright
+              and lyrics all come across — you'll see exactly what changes before saving.
             </p>
 
             <textarea class="input font-mono text-xs" rows="4" :value="pasted"
@@ -178,6 +225,18 @@ function setToastOpen(open) {
             <p v-else-if="parsed?.empty" class="text-xs text-red-800">
               No CCLI number or copyright found in that. Check you copied the whole export.
             </p>
+
+            <label v-if="lyricsDiff && !lyricsDiff.identical"
+              class="flex cursor-pointer items-start gap-2 rounded-md border border-brass bg-brass-wash p-2 text-xs text-ink">
+              <input type="checkbox" class="mt-0.5" v-model="replaceLyrics">
+              <span>
+                Replace the stored lyrics with this version.
+                <span v-if="lyricsDiff.lost" class="text-amber-900">
+                  {{ lyricsDiff.lost }} of your lines would be dropped — untick to keep your
+                  arrangement and save only the CCLI details.
+                </span>
+              </span>
+            </label>
 
             <div class="flex flex-wrap justify-end gap-2 pt-1">
               <button class="btn btn-sm" :disabled="busy" @click="skipCurrent">Skip for now</button>
