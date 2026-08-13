@@ -16,8 +16,8 @@ store.init()
 // mark the song reviewed and hide it from this queue for good, which is the
 // opposite of "come back to it" — it would quietly strand songs unmatched.
 const skipped = ref(new Set())
-const queue = computed(() => buildQueue(store.lyrics).filter((q) => !skipped.value.has(q.song.id)))
-const stats = computed(() => progress(store.lyrics))
+const queue = computed(() => buildQueue(store.availableLyrics).filter((q) => !skipped.value.has(q.song.id)))
+const stats = computed(() => progress(store.availableLyrics))
 const current = computed(() => queue.value[0] ?? null)
 
 const pasted = ref('')

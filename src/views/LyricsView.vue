@@ -65,7 +65,7 @@ function focusKey(key) {
 }
 
 function restoreFocus(event) {
-  // After a delete the originating row is gone, so fall back to the one control
+  // After an archive the originating row is gone, so fall back to the one control
   // that always exists rather than dropping focus on <body>.
   const target = focusKey(returnFocusTo.value) || focusKey('add-song')
   if (target) {
@@ -74,7 +74,7 @@ function restoreFocus(event) {
   }
 }
 
-// Choosing "Edit" or "Delete" opens an overlay, but the menu closes a beat
+// Choosing "Edit" or "Archive" opens an overlay, but the menu closes a beat
 // later and its own focus restoration yanks focus back out to the trigger.
 // Suppress it only when an overlay is taking over; the plain items still
 // restore normally.
@@ -82,20 +82,20 @@ function onMenuCloseAutoFocus(event) {
   if (showModal.value || del.shown.value) event.preventDefault()
 }
 
-// Deleting is irreversible and there is no undo, so it is confirmed by name.
+// Confirm archiving by name so an accidental menu click cannot hide a song.
 // useConfirm keeps the subject out of reactive state: confirming closes the
 // dialog first, and anything held in a ref is already gone by the time the
 // click handler runs.
 const del = useConfirm()
 
-function confirmDelete(lyric) {
+function confirmArchive(lyric) {
   returnFocusTo.value = `row-menu-${lyric.id}`
   del.ask(lyric)
 }
 
-async function reallyDelete() {
+async function reallyArchive() {
   const target = del.take()
-  if (target) await store.deleteLyric(target.id)
+  if (target) await store.archiveLyric(target.id)
 }
 
 // Paste is where the structural clean-up happens, and it always reports itself.
@@ -189,7 +189,7 @@ const songSelectUrl = computed(() => {
 const duplicateOf = computed(() => {
   const title = edit.value.song.trim().toLowerCase()
   if (!title) return null
-  return store.lyrics.find(
+  return store.availableLyrics.find(
     (l) => l.id !== edit.value.id && (l.song ?? '').trim().toLowerCase() === title) ?? null
 })
 
@@ -317,9 +317,9 @@ async function updateLyrics() {
                               Remove from set list
                             </DropdownMenuItem>
                             <DropdownMenuSeparator class="my-1 h-px bg-brass-soft" />
-                            <DropdownMenuItem as="button" class="menu-item menu-item-danger"
-                              @select="confirmDelete(element)">
-                              Delete song…
+                            <DropdownMenuItem as="button" class="menu-item"
+                              @select="confirmArchive(element)">
+                              Archive song…
                             </DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenuPortal>
@@ -395,9 +395,9 @@ async function updateLyrics() {
                             Add to set list
                           </DropdownMenuItem>
                           <DropdownMenuSeparator class="my-1 h-px bg-brass-soft" />
-                          <DropdownMenuItem as="button" class="menu-item menu-item-danger"
-                            @select="confirmDelete(lyric)">
-                            Delete song…
+                          <DropdownMenuItem as="button" class="menu-item"
+                            @select="confirmArchive(lyric)">
+                            Archive song…
                           </DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenuPortal>
@@ -412,6 +412,26 @@ async function updateLyrics() {
                 : 'The library is empty.' }}
             </p>
           </div>
+        </section>
+
+        <!-- Archive -->
+        <section v-if="store.archivedLyrics.length" class="space-y-3">
+          <details class="card p-4">
+            <summary class="cursor-pointer font-display font-bold text-ink">
+              Archive ({{ store.archivedLyrics.length }})
+            </summary>
+            <p class="mt-1 text-xs text-ink-soft">Archived songs are hidden everywhere else in the app.</p>
+            <ul class="mt-3 divide-y divide-brass-soft">
+              <li v-for="lyric in store.archivedLyrics" :key="lyric.id"
+                class="flex items-center gap-3 py-2 text-sm">
+                <span class="min-w-0 flex-1 truncate">
+                  <strong class="font-semibold text-ink">{{ lyric.song }}</strong>
+                  <span v-if="lyric.artist" class="text-ink-soft"> — {{ lyric.artist }}</span>
+                </span>
+                <button class="btn btn-sm" @click="store.restoreLyric(lyric.id)">Restore</button>
+              </li>
+            </ul>
+          </details>
         </section>
       </main>
 
@@ -527,7 +547,7 @@ async function updateLyrics() {
         </DialogPortal>
       </DialogRoot>
 
-      <!-- Delete confirmation. Irreversible, so it names the song. -->
+      <!-- Archive confirmation. -->
       <AlertDialogRoot :open="!!del.shown.value" @update:open="open => { if (!open) del.dismiss() }">
         <AlertDialogPortal>
           <AlertDialogOverlay class="fixed inset-0 z-40 bg-ink/50" />
@@ -535,17 +555,17 @@ async function updateLyrics() {
             class="fixed inset-x-0 top-1/2 z-50 mx-auto w-[calc(100%-2rem)] max-w-md -translate-y-1/2
                    rounded-md border border-brass-soft bg-white p-6 shadow-xl focus:outline-none"
             @close-auto-focus="restoreFocus">
-            <AlertDialogTitle class="font-display text-xl font-bold text-ink">Delete this song?</AlertDialogTitle>
+            <AlertDialogTitle class="font-display text-xl font-bold text-ink">Archive this song?</AlertDialogTitle>
             <AlertDialogDescription class="mt-2 text-sm text-ink-soft">
               <strong class="font-semibold text-ink">{{ del.shown.value?.song }}</strong>
               <template v-if="del.shown.value?.artist"> by {{ del.shown.value.artist }}</template>
-              will be removed from the library permanently, along with its lyrics.
-              This cannot be undone.
+              will be removed from the library and set list. Its lyrics will be kept,
+              and you can restore it later.
             </AlertDialogDescription>
             <div class="mt-5 flex justify-end gap-2">
               <AlertDialogCancel as="button" class="btn">Cancel</AlertDialogCancel>
-              <AlertDialogAction as="button" class="btn btn-danger" @click="reallyDelete">
-                Delete permanently
+              <AlertDialogAction as="button" class="btn btn-primary" @click="reallyArchive">
+                Archive song
               </AlertDialogAction>
             </div>
           </AlertDialogContent>

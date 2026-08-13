@@ -14,7 +14,7 @@ import {
 const store = useStore()
 store.init()
 
-const groups = computed(() => findDuplicateGroups(store.lyrics))
+const groups = computed(() => findDuplicateGroups(store.availableLyrics))
 
 // Which row to keep, per group. Defaults to the suggestion but stays editable.
 const chosen = ref({})
@@ -39,7 +39,7 @@ async function confirmMerge() {
   await store.mergeSongs({
     keepId: plan.keeper.id,
     fields: plan.fields,
-    deleteIds: plan.others.map((s) => s.id),
+    archiveIds: plan.others.map((s) => s.id),
   })
 }
 
@@ -61,14 +61,14 @@ function comparison(group, song) {
   const lyrics = diffLines(keeper.lyrics, song.lyrics)
   return {
     lyrics,
-    // Lines present here and absent from the keeper: exactly what deleting
-    // this row would throw away.
+    // Lines present here and absent from the keeper: exactly what archiving
+    // this row would hide from the working library.
     unique: lyrics.rows.filter((r) => r.status === 'added' && r.text.trim()).length,
     fields: diffFields(keeper, song),
   }
 }
 
-// The decision is "what do I lose if I delete this row", so the emphasis goes
+// The decision is "what leaves the working library if I archive this row", so the emphasis goes
 // on lines unique to this copy. Lines only in the keeper are muted — they are
 // not at risk.
 const rowClass = (status) => ({
@@ -101,7 +101,7 @@ const FIELD_LABEL = {
           <p class="mt-1 text-sm text-ink-soft">
             <template v-if="summary.groups">
               {{ summary.groups }} groups covering {{ summary.rows }} songs —
-              up to {{ summary.removable }} rows could be removed. Nothing is merged
+              up to {{ summary.removable }} rows could be archived. Nothing is merged
               until you say so.
             </template>
             <template v-else-if="store.isLoading">Loading…</template>
@@ -143,7 +143,7 @@ const FIELD_LABEL = {
                   <template v-if="comparison(group, song)">
                     <p v-if="comparison(group, song).lyrics.identical"
                       class="mt-2 text-[11px] font-medium text-ink-soft">
-                      Lyrics identical — nothing lost by deleting this
+                      Lyrics identical — nothing lost by archiving this
                     </p>
                     <p v-else-if="comparison(group, song).unique"
                       class="mt-2 text-[11px] font-medium text-amber-800">
@@ -186,8 +186,8 @@ const FIELD_LABEL = {
             <button class="btn btn-sm" @click="store.dismissDuplicates(group.songs.map(s => s.id))">
               Not duplicates
             </button>
-            <button class="btn btn-sm btn-danger" @click="planMerge(group)">
-              Keep selected, delete {{ group.songs.length - 1 }}
+            <button class="btn btn-sm btn-primary" @click="planMerge(group)">
+              Keep selected, archive {{ group.songs.length - 1 }}
             </button>
           </div>
         </section>
@@ -215,7 +215,7 @@ const FIELD_LABEL = {
                 </ul>
               </div>
               <div>
-                <p class="text-red-800">Permanently deleting:</p>
+                <p class="text-ink">Archiving:</p>
                 <ul class="mt-1 space-y-0.5">
                   <li v-for="other in merge.shown.value?.others" :key="other.id">
                     • {{ other.song || '(no title)' }}
@@ -224,12 +224,12 @@ const FIELD_LABEL = {
                   </li>
                 </ul>
               </div>
-              <p>This cannot be undone.</p>
+              <p>Archived copies can be restored later from the song library.</p>
             </AlertDialogDescription>
             <div class="mt-5 flex justify-end gap-2">
               <AlertDialogCancel as="button" class="btn">Cancel</AlertDialogCancel>
-              <AlertDialogAction as="button" class="btn btn-danger" @click="confirmMerge">
-                Merge and delete
+              <AlertDialogAction as="button" class="btn btn-primary" @click="confirmMerge">
+                Merge and archive
               </AlertDialogAction>
             </div>
           </AlertDialogContent>

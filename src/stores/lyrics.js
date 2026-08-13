@@ -9,7 +9,7 @@ import {
   updateDoc,
   writeBatch,
   deleteField,
-  deleteDoc,
+  serverTimestamp,
   arrayUnion,
   addDoc
 } from 'firebase/firestore'
@@ -129,17 +129,24 @@ export const useStore = defineStore('lyrics', {
       )
     },
 
-    // Merge: fill blanks on the keeper from its siblings, then delete them.
+    // Merge: fill blanks on the keeper from its siblings, then archive them.
     // The writes are batched so a half-finished merge can't leave the library
     // with the keeper updated and the duplicates still present, or worse.
-    mergeSongs({ keepId, fields, deleteIds }) {
+    mergeSongs({ keepId, fields, archiveIds }) {
       return this.run(
         () => {
           const batch = writeBatch(db)
           if (Object.keys(fields ?? {}).length) {
             batch.update(doc(db, 'lyrics', keepId), fields)
           }
-          for (const id of deleteIds) batch.delete(doc(db, 'lyrics', id))
+          for (const id of archiveIds) {
+            batch.update(doc(db, 'lyrics', id), {
+              archived: true,
+              archivedAt: serverTimestamp(),
+              enabled: false,
+              order: deleteField(),
+            })
+          }
           return batch.commit()
         },
         'Could not merge those songs'
@@ -162,12 +169,26 @@ export const useStore = defineStore('lyrics', {
       )
     },
 
-    // Irreversible, and the rules already cover it: `allow write` on /lyrics
-    // spans create, update and delete. Callers are expected to confirm first.
-    deleteLyric(id) {
+    archiveLyric(id) {
       return this.run(
-        () => deleteDoc(doc(db, 'lyrics', id)),
-        'Could not delete the song'
+        () => updateDoc(doc(db, 'lyrics', id), {
+          archived: true,
+          archivedAt: serverTimestamp(),
+          enabled: false,
+          order: deleteField(),
+        }),
+        'Could not archive the song'
+      )
+    },
+    restoreLyric(id) {
+      return this.run(
+        () => updateDoc(doc(db, 'lyrics', id), {
+          archived: false,
+          archivedAt: deleteField(),
+          enabled: false,
+          order: deleteField(),
+        }),
+        'Could not restore the song'
       )
     },
     updateScripture(id) {
@@ -255,13 +276,19 @@ export const useStore = defineStore('lyrics', {
     // filter() already returns a new array, so sorting it in place is safe.
     activeLyrics: (state) =>
       state.lyrics
-        .filter(l => l.enabled)
+        .filter(l => l.enabled && !l.archived)
         .sort((a, b) => (a.order ?? 0) - (b.order ?? 0)),
     // A falsy test rather than enabled === false, so songs imported without the
     // field still appear in the library instead of vanishing from both lists.
     inactiveLyrics: (state) =>
       state.lyrics
-        .filter(l => !l.enabled)
+        .filter(l => !l.enabled && !l.archived)
+        .sort(byArtistThenSong),
+    availableLyrics: (state) =>
+      state.lyrics.filter(l => !l.archived),
+    archivedLyrics: (state) =>
+      state.lyrics
+        .filter(l => l.archived)
         .sort(byArtistThenSong),
     filteredLyrics: (state) => {
       const artist = state.search.artist.toLowerCase()
