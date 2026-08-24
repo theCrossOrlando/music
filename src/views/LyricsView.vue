@@ -18,6 +18,7 @@ import {
 } from 'reka-ui'
 import { normalize, looksLikeChordPro, parseSections } from '@/lib/lyricsFormat.js'
 import { useConfirm } from '@/lib/useConfirm.js'
+import { KIND, kindOf } from '@/lib/kind.js'
 import {
   suggestBooks, completeBook, splitReferences, unknownBooks, bibleGatewayUrl,
 } from '@/lib/scripture.js'
@@ -51,19 +52,56 @@ const searchStatus = computed(() => {
     : `No songs match \u201C${q}\u201D`
 })
 
-// draggable needs a writable binding, but activeLyrics is a derived getter.
+// draggable needs a writable binding, but the set list is a derived getter.
 // The setter persists the new order instead of mutating the source; Firestore's
 // latency compensation re-emits the snapshot immediately, so the list does not
 // snap back while the write is in flight.
-const activeList = computed({
-  get: () => store.activeLyrics,
+//
+// One binding per group, and deliberately no shared vuedraggable `group`: a row
+// is a song or liturgy because of its `kind`, which is changed in the edit
+// modal — not something to be established by dragging it over a heading.
+const activeSongList = computed({
+  get: () => store.activeSongs,
   set: (ordered) => store.saveOrder(ordered),
+})
+const activeLiturgyList = computed({
+  get: () => store.activeLiturgy,
+  set: (ordered) => store.saveOrder(ordered),
+})
+
+// Songs always render — the empty state lives there. Liturgy appears only once
+// the set list has some, so a Sunday without any looks exactly as it did before
+// the split, with no empty second table and no heading over the only table
+// there is.
+const setGroups = computed(() => {
+  const groups = [{ key: 'songs', label: 'Songs', heading: 'Song', list: activeSongList }]
+  if (store.activeLiturgy.length) {
+    groups.push({ key: 'liturgy', label: 'Liturgy', heading: 'Title', list: activeLiturgyList })
+  }
+  return groups
+})
+
+// The browse list splits the same way. A search does not: ranking across the
+// whole library is the entire point of that list, and splitting it would bury
+// the best match under a heading.
+const libraryGroups = computed(() => {
+  if (store.search.query.trim()) {
+    return [{ key: 'results', label: null, heading: 'Song', rows: store.libraryRows }]
+  }
+  const asRows = (songs) => songs.map((song) => ({ song, excerpt: [] }))
+  const groups = [
+    { key: 'songs', label: 'Songs', heading: 'Song', rows: asRows(store.librarySongs) },
+    { key: 'liturgy', label: 'Liturgy', heading: 'Title', rows: asRows(store.libraryLiturgy) },
+  ].filter((group) => group.rows.length)
+  // Nothing to show at all still needs somewhere to say so.
+  return groups.length ? groups : [{ key: 'songs', label: null, heading: 'Song', rows: [] }]
 })
 
 const edit = ref({
   id: '',
   artist: '',
   song: '',
+  kind: KIND.SONG,
   lyrics: '',
   ccliNumber: '',
   copyright: '',
@@ -232,6 +270,7 @@ function displayModal(id) {
   edit.value = {
     artist: '',
     song: '',
+    kind: KIND.SONG,
     lyrics: '',
     ccliNumber: '',
     copyright: '',
@@ -245,6 +284,10 @@ function displayModal(id) {
       id: id,
       artist: editLyric.artist,
       song: editLyric.song,
+      // Resolved, not read raw: a row that predates the field shows the
+      // classification it is already being filed under, so opening and saving
+      // it cannot silently move it.
+      kind: kindOf(editLyric),
       lyrics: editLyric.lyrics,
       ccliNumber: editLyric.ccliNumber ?? '',
       copyright: editLyric.copyright ?? '',
@@ -339,55 +382,62 @@ async function updateLyrics() {
             </button>
           </div>
 
-          <div class="table-wrap">
-            <table class="table">
-              <thead>
-                <tr>
-                  <th scope="col">Artist</th>
-                  <th scope="col">Song</th>
-                  <th scope="col"><span class="sr-only">Actions</span></th>
-                </tr>
-              </thead>
-              <draggable v-model="activeList" tag="tbody" item-key="id" handle=".drag-handle">
-                <template #item="{ element }">
-                  <tr class="group">
-                    <th scope="row">
-                      <span class="drag-handle mr-2 cursor-grab text-brass-soft group-hover:text-brass"
-                        aria-hidden="true">⠿</span>{{ element.artist }}
-                    </th>
-                    <td>{{ element.song }}</td>
-                    <td class="w-px text-right">
-                      <DropdownMenuRoot>
-                        <DropdownMenuTrigger as="button" class="btn btn-sm btn-icon"
-                          :data-focus-key="`row-menu-${element.id}`"
-                          :aria-label="`Actions for ${element.song}`">
-                          <font-awesome-icon icon="ellipsis" />
-                        </DropdownMenuTrigger>
-                        <DropdownMenuPortal>
-                          <DropdownMenuContent class="menu-panel" align="end" :side-offset="4"
-                            @close-auto-focus="onMenuCloseAutoFocus">
-                            <DropdownMenuItem as="button" class="menu-item" @select="displayModal(element.id)">
-                              Edit
-                            </DropdownMenuItem>
-                            <DropdownMenuItem as="button" class="menu-item" @select="store.disable(element.id)">
-                              Remove from set list
-                            </DropdownMenuItem>
-                            <DropdownMenuSeparator class="my-1 h-px bg-brass-soft" />
-                            <DropdownMenuItem as="button" class="menu-item"
-                              @select="confirmArchive(element)">
-                              Archive song…
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenuPortal>
-                      </DropdownMenuRoot>
-                    </td>
+          <!-- One draggable table per group. `group.list` is a writable
+               computed rather than a plain array, so it is reached through
+               .value here; each one persists only its own group's order. -->
+          <div v-for="group in setGroups" :key="group.key" class="space-y-2">
+            <h3 v-if="setGroups.length > 1"
+              class="font-label text-[11px] uppercase tracking-wider text-gold">{{ group.label }}</h3>
+            <div class="table-wrap">
+              <table class="table">
+                <thead>
+                  <tr>
+                    <th scope="col">Artist</th>
+                    <th scope="col">{{ group.heading }}</th>
+                    <th scope="col"><span class="sr-only">Actions</span></th>
                   </tr>
-                </template>
-              </draggable>
-            </table>
-            <p v-if="!store.activeLyrics.length" class="px-4 py-8 text-center text-sm text-ink-soft">
-              No songs in the set list yet. Add one from the library below.
-            </p>
+                </thead>
+                <draggable v-model="group.list.value" tag="tbody" item-key="id" handle=".drag-handle">
+                  <template #item="{ element }">
+                    <tr class="group">
+                      <th scope="row">
+                        <span class="drag-handle mr-2 cursor-grab text-brass-soft group-hover:text-brass"
+                          aria-hidden="true">⠿</span>{{ element.artist }}
+                      </th>
+                      <td>{{ element.song }}</td>
+                      <td class="w-px text-right">
+                        <DropdownMenuRoot>
+                          <DropdownMenuTrigger as="button" class="btn btn-sm btn-icon"
+                            :data-focus-key="`row-menu-${element.id}`"
+                            :aria-label="`Actions for ${element.song}`">
+                            <font-awesome-icon icon="ellipsis" />
+                          </DropdownMenuTrigger>
+                          <DropdownMenuPortal>
+                            <DropdownMenuContent class="menu-panel" align="end" :side-offset="4"
+                              @close-auto-focus="onMenuCloseAutoFocus">
+                              <DropdownMenuItem as="button" class="menu-item" @select="displayModal(element.id)">
+                                Edit
+                              </DropdownMenuItem>
+                              <DropdownMenuItem as="button" class="menu-item" @select="store.disable(element.id)">
+                                Remove from set list
+                              </DropdownMenuItem>
+                              <DropdownMenuSeparator class="my-1 h-px bg-brass-soft" />
+                              <DropdownMenuItem as="button" class="menu-item"
+                                @select="confirmArchive(element)">
+                                Archive song…
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenuPortal>
+                        </DropdownMenuRoot>
+                      </td>
+                    </tr>
+                  </template>
+                </draggable>
+              </table>
+              <p v-if="!group.list.value.length" class="px-4 py-8 text-center text-sm text-ink-soft">
+                No songs in the set list yet. Add one from the library below.
+              </p>
+            </div>
           </div>
         </section>
 
@@ -416,58 +466,66 @@ async function updateLyrics() {
             {{ searchStatus }}
           </p>
 
-          <div class="table-wrap" id="library-results">
-            <table class="table">
-              <thead>
-                <tr>
-                  <th scope="col">Artist</th>
-                  <th scope="col">Song</th>
-                  <th scope="col"><span class="sr-only">Actions</span></th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr v-for="{ song: lyric, excerpt } in store.libraryRows" :key="lyric.id">
-                  <th scope="row">{{ lyric.artist }}</th>
-                  <td>
-                    {{ lyric.song }}
-                    <!-- Where in the lyrics the match landed, as the sermon
-                         search shows the line of the transcript it found. -->
-                    <p v-if="excerpt.length" class="search-excerpt mt-1 max-w-prose text-xs text-ink-soft">
-                      <template v-for="(segment, i) in excerpt" :key="i"><mark
-                          v-if="segment.mark">{{ segment.text }}</mark><span v-else>{{ segment.text }}</span></template>
-                    </p>
-                  </td>
-                  <td class="w-px text-right">
-                    <DropdownMenuRoot>
-                      <DropdownMenuTrigger as="button" class="btn btn-sm btn-icon"
-                        :data-focus-key="`row-menu-${lyric.id}`"
-                        :aria-label="`Actions for ${lyric.song}`">
-                        <font-awesome-icon icon="ellipsis" />
-                      </DropdownMenuTrigger>
-                      <DropdownMenuPortal>
-                        <DropdownMenuContent class="menu-panel" align="end" :side-offset="4"
-                          @close-auto-focus="onMenuCloseAutoFocus">
-                          <DropdownMenuItem as="button" class="menu-item" @select="displayModal(lyric.id)">
-                            Edit
-                          </DropdownMenuItem>
-                          <DropdownMenuItem as="button" class="menu-item" @select="store.enable(lyric.id)">
-                            Add to set list
-                          </DropdownMenuItem>
-                          <DropdownMenuSeparator class="my-1 h-px bg-brass-soft" />
-                          <DropdownMenuItem as="button" class="menu-item"
-                            @select="confirmArchive(lyric)">
-                            Archive song…
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenuPortal>
-                    </DropdownMenuRoot>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-            <p v-if="!store.libraryRows.length" class="px-4 py-8 text-center text-sm text-ink-soft">
-              {{ store.search.query.trim() ? searchStatus : 'The library is empty.' }}
-            </p>
+          <div id="library-results" class="space-y-4">
+            <div v-for="group in libraryGroups" :key="group.key" class="space-y-2">
+              <h3 v-if="group.label && libraryGroups.length > 1"
+                class="font-label text-[11px] uppercase tracking-wider text-gold">
+                {{ group.label }} ({{ group.rows.length }})
+              </h3>
+              <div class="table-wrap">
+                <table class="table">
+                  <thead>
+                    <tr>
+                      <th scope="col">Artist</th>
+                      <th scope="col">{{ group.heading }}</th>
+                      <th scope="col"><span class="sr-only">Actions</span></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr v-for="{ song: lyric, excerpt } in group.rows" :key="lyric.id">
+                      <th scope="row">{{ lyric.artist }}</th>
+                      <td>
+                        {{ lyric.song }}
+                        <!-- Where in the lyrics the match landed, as the sermon
+                             search shows the line of the transcript it found. -->
+                        <p v-if="excerpt.length" class="search-excerpt mt-1 max-w-prose text-xs text-ink-soft">
+                          <template v-for="(segment, i) in excerpt" :key="i"><mark
+                              v-if="segment.mark">{{ segment.text }}</mark><span v-else>{{ segment.text }}</span></template>
+                        </p>
+                      </td>
+                      <td class="w-px text-right">
+                        <DropdownMenuRoot>
+                          <DropdownMenuTrigger as="button" class="btn btn-sm btn-icon"
+                            :data-focus-key="`row-menu-${lyric.id}`"
+                            :aria-label="`Actions for ${lyric.song}`">
+                            <font-awesome-icon icon="ellipsis" />
+                          </DropdownMenuTrigger>
+                          <DropdownMenuPortal>
+                            <DropdownMenuContent class="menu-panel" align="end" :side-offset="4"
+                              @close-auto-focus="onMenuCloseAutoFocus">
+                              <DropdownMenuItem as="button" class="menu-item" @select="displayModal(lyric.id)">
+                                Edit
+                              </DropdownMenuItem>
+                              <DropdownMenuItem as="button" class="menu-item" @select="store.enable(lyric.id)">
+                                Add to set list
+                              </DropdownMenuItem>
+                              <DropdownMenuSeparator class="my-1 h-px bg-brass-soft" />
+                              <DropdownMenuItem as="button" class="menu-item"
+                                @select="confirmArchive(lyric)">
+                                Archive song…
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenuPortal>
+                        </DropdownMenuRoot>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+                <p v-if="!group.rows.length" class="px-4 py-8 text-center text-sm text-ink-soft">
+                  {{ store.search.query.trim() ? searchStatus : 'The library is empty.' }}
+                </p>
+              </div>
+            </div>
           </div>
         </section>
 
@@ -510,6 +568,24 @@ async function updateLyrics() {
             </VisuallyHidden>
 
             <div class="mt-4 space-y-3">
+              <!-- First, because it changes what everything below it means. A
+                   two-way exclusive choice is what native radios are for; reka
+                   is worth reaching for when it buys behaviour HTML lacks. -->
+              <fieldset class="flex flex-wrap items-center gap-x-5 gap-y-1">
+                <legend class="font-label text-[11px] uppercase tracking-wider text-gold">This is a</legend>
+                <label class="flex cursor-pointer items-center gap-2 text-sm text-ink">
+                  <input type="radio" name="kind" class="accent-ink" :value="KIND.SONG" v-model="edit.kind">
+                  Song
+                </label>
+                <label class="flex cursor-pointer items-center gap-2 text-sm text-ink">
+                  <input type="radio" name="kind" class="accent-ink" :value="KIND.LITURGY" v-model="edit.kind">
+                  Liturgy
+                </label>
+                <p class="basis-full text-xs text-ink-soft">
+                  Liturgy gets its own section on the lyrics page — no artist byline, no CCLI credit.
+                </p>
+              </fieldset>
+
               <div class="grid gap-3 sm:grid-cols-2">
                 <input type="text" class="input" v-model="edit.artist" placeholder="Artist" aria-label="Artist">
                 <div class="flex gap-2">

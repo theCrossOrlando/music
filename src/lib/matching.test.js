@@ -1,23 +1,9 @@
 import { describe, it, expect } from 'vitest'
 import {
-  STATUS, isLiturgy, looksPublicDomain, isReviewed, buildQueue, progress, decisionFields,
+  STATUS, looksPublicDomain, isReviewed, buildQueue, progress, decisionFields,
 } from './matching.js'
 
 const s = (id, song, artist = '', extra = {}) => ({ id, song, artist, ...extra })
-
-describe('isLiturgy', () => {
-  // All real rows from the library.
-  it.each([
-    'Confession', 'Doxology', 'Call To Worship', 'Nunc Dimittis',
-    // Apostrophe placement: the real row is "Apostle's", not "Apostles'".
-    "Apostle's Creed", 'Apostles Creed', 'Apostle’s Creed',
-    'January Prayer', "February's Prayer", 'A Good Shepherd Litany', 'Lament Liturgy',
-    'Annual Commitment Form',
-  ])('%s is liturgy', (title) => expect(isLiturgy(s('1', title))).toBe(true))
-
-  it.each(['Amazing Grace', 'Goodness of God', 'Cornerstone'])(
-    '%s is a song', (title) => expect(isLiturgy(s('1', title))).toBe(false))
-})
 
 describe('looksPublicDomain', () => {
   it.each([
@@ -89,6 +75,17 @@ describe('buildQueue', () => {
     expect(by['1']).toBe(STATUS.NOT_A_SONG)
     expect(by['2']).toBe(STATUS.PUBLIC_DOMAIN)
     expect(by['3']).toBeNull()
+  })
+
+  it('suggests not-a-song for a row marked liturgy by hand', () => {
+    // Nothing about the title says liturgy — only the field does.
+    const q = buildQueue([s('1', 'Annual Meeting Notes', '', { kind: 'liturgy' })])
+    expect(q[0].suggestion).toBe(STATUS.NOT_A_SONG)
+  })
+
+  it('does not suggest not-a-song for a liturgy-shaped title kept as a song', () => {
+    const q = buildQueue([s('1', 'Doxology', 'Thomas Ken', { kind: 'song' })])
+    expect(q[0].suggestion).toBeNull()
   })
 })
 
