@@ -43,13 +43,14 @@ watch(query, (value) => {
 })
 onUnmounted(() => clearTimeout(queryTimer))
 
-// The site's own phrasing, curly quotes and all.
+// The site's phrasing, curly quotes and all — but counted in results rather
+// than songs, because this list spans the liturgy too.
 const searchStatus = computed(() => {
   const n = store.libraryRows.length
   const q = store.search.query.trim()
   return n
-    ? `${n} song${n === 1 ? '' : 's'} match \u201C${q}\u201D`
-    : `No songs match \u201C${q}\u201D`
+    ? `${n} result${n === 1 ? '' : 's'} match \u201C${q}\u201D`
+    : `No results match \u201C${q}\u201D`
 })
 
 // draggable needs a writable binding, but the set list is a derived getter.
@@ -110,6 +111,14 @@ const edit = ref({
 const showModal = ref(false)
 const formError = ref('')
 
+// What to call the thing being edited. "Liturgy" is the section; one of them is
+// a liturgy item.
+const nounFor = (kind) => (kind === KIND.LITURGY ? 'liturgy item' : 'song')
+const bodyNounFor = (kind) => (kind === KIND.LITURGY ? 'text' : 'lyrics')
+const editNoun = computed(() => nounFor(edit.value.kind))
+const editBodyNoun = computed(() => bodyNounFor(edit.value.kind))
+const editBodyLabel = computed(() => (edit.value.kind === KIND.LITURGY ? 'Text' : 'Lyrics'))
+
 // Reka drives the toast's lifetime; routing its close back through the store
 // means auto-dismiss and the close button clear the error by the same path.
 function setToastOpen(open) {
@@ -150,6 +159,8 @@ function onMenuCloseAutoFocus(event) {
 // dialog first, and anything held in a ref is already gone by the time the
 // click handler runs.
 const del = useConfirm()
+const archiveNoun = computed(() => nounFor(kindOf(del.shown.value)))
+const archiveBodyNoun = computed(() => bodyNounFor(kindOf(del.shown.value)))
 
 function confirmArchive(lyric) {
   returnFocusTo.value = `row-menu-${lyric.id}`
@@ -378,7 +389,7 @@ async function updateLyrics() {
             <button data-focus-key="add-song" class="btn btn-primary shrink-0 whitespace-nowrap"
               @click="displayModal()">
               <font-awesome-icon icon="plus" />
-              Add song
+              Add to library
             </button>
           </div>
 
@@ -424,7 +435,7 @@ async function updateLyrics() {
                               <DropdownMenuSeparator class="my-1 h-px bg-brass-soft" />
                               <DropdownMenuItem as="button" class="menu-item"
                                 @select="confirmArchive(element)">
-                                Archive song…
+                                Archive…
                               </DropdownMenuItem>
                             </DropdownMenuContent>
                           </DropdownMenuPortal>
@@ -459,7 +470,7 @@ async function updateLyrics() {
               <font-awesome-icon icon="magnifying-glass" />
             </span>
             <input class="input pl-9" type="search" v-model="query"
-              placeholder="Search songs, artists &amp; lyrics…" aria-label="Search the library"
+              placeholder="Search titles, artists &amp; text…" aria-label="Search the library"
               aria-controls="library-results">
           </div>
           <p v-if="store.search.query.trim()" class="text-xs text-ink-soft" aria-live="polite">
@@ -512,7 +523,7 @@ async function updateLyrics() {
                               <DropdownMenuSeparator class="my-1 h-px bg-brass-soft" />
                               <DropdownMenuItem as="button" class="menu-item"
                                 @select="confirmArchive(lyric)">
-                                Archive song…
+                                Archive…
                               </DropdownMenuItem>
                             </DropdownMenuContent>
                           </DropdownMenuPortal>
@@ -535,7 +546,7 @@ async function updateLyrics() {
             <summary class="cursor-pointer font-display font-bold text-ink">
               Archive ({{ store.archivedLyrics.length }})
             </summary>
-            <p class="mt-1 text-xs text-ink-soft">Archived songs are hidden everywhere else in the app.</p>
+            <p class="mt-1 text-xs text-ink-soft">Anything archived is hidden everywhere else in the app.</p>
             <ul class="mt-3 divide-y divide-brass-soft">
               <li v-for="lyric in store.archivedLyrics" :key="lyric.id"
                 class="flex items-center gap-3 py-2 text-sm">
@@ -550,7 +561,7 @@ async function updateLyrics() {
         </section>
       </main>
 
-      <!-- Edit / add song -->
+      <!-- Edit / add -->
       <DialogRoot v-model:open="showModal">
         <DialogPortal>
           <DialogOverlay class="fixed inset-0 z-40 bg-ink/50" />
@@ -559,11 +570,11 @@ async function updateLyrics() {
                    rounded-md border border-brass-soft bg-white p-6 shadow-xl focus:outline-none"
             @close-auto-focus="restoreFocus">
             <DialogTitle class="font-display text-xl font-bold text-ink">
-              {{ edit.id ? 'Edit song' : 'Add a song' }}
+              {{ edit.id ? `Edit ${editNoun}` : `Add a ${editNoun}` }}
             </DialogTitle>
             <VisuallyHidden as-child>
               <DialogDescription>
-                Enter the artist, song title and lyrics, then save.
+                Enter the title and the text, then save.
               </DialogDescription>
             </VisuallyHidden>
 
@@ -589,8 +600,8 @@ async function updateLyrics() {
               <div class="grid gap-3 sm:grid-cols-2">
                 <input type="text" class="input" v-model="edit.artist" placeholder="Artist" aria-label="Artist">
                 <div class="flex gap-2">
-                  <input type="text" class="input" v-model="edit.song" placeholder="Song title"
-                    aria-label="Song title">
+                  <input type="text" class="input" v-model="edit.song" placeholder="Title"
+                    aria-label="Title">
                   <a class="btn shrink-0 whitespace-nowrap" :href="songSelectUrl" target="_blank" rel="noopener">
                     Find on SongSelect ↗
                   </a>
@@ -609,7 +620,9 @@ async function updateLyrics() {
               </div>
 
               <div class="flex flex-wrap items-center justify-between gap-3">
-                <p class="font-label text-[11px] uppercase tracking-wider text-gold">Lyrics</p>
+                <p class="font-label text-[11px] uppercase tracking-wider text-gold">
+                  {{ editBodyLabel }}
+                </p>
                 <div class="flex items-center gap-3 text-xs">
                   <button type="button" class="btn btn-sm" @click="importFromClipboard">
                     Import from SongSelect
@@ -649,15 +662,19 @@ async function updateLyrics() {
 
               <div class="grid gap-3" :class="showPreview ? 'lg:grid-cols-2' : ''">
                 <textarea class="input font-mono text-xs leading-relaxed" v-model="edit.lyrics"
-                  placeholder="Paste from SongSelect, drop an exported file, or type lyrics here"
-                  rows="16" aria-label="Lyrics"
+                  :placeholder="`Paste from SongSelect, drop an exported file, or type the ${editBodyNoun} here`"
+                  rows="16" :aria-label="editBodyLabel"
                   @paste="onLyricsPaste" @drop="onDrop" @dragover.prevent></textarea>
 
                 <!-- Rendered by the same parser the public page uses. -->
                 <div v-if="showPreview"
                   class="max-h-[26rem] overflow-y-auto rounded-md border border-brass-soft bg-paper p-4">
-                  <p class="font-display text-2xl font-bold text-ink">{{ edit.song || 'Song title' }}</p>
-                  <p v-if="edit.artist" class="mb-3 text-xs font-semibold text-ink-soft">by {{ edit.artist }}</p>
+                  <p class="font-display text-2xl font-bold text-ink">{{ edit.song || 'Title' }}</p>
+                  <!-- Suppressed for liturgy, as the public page suppresses it: a
+                       preview that shows a byline the page will not render is worse
+                       than no preview. -->
+                  <p v-if="edit.artist && edit.kind !== KIND.LITURGY"
+                    class="mb-3 text-xs font-semibold text-ink-soft">by {{ edit.artist }}</p>
                   <template v-if="previewSections">
                     <div v-for="(section, i) in previewSections" :key="i" class="mt-4 first:mt-0">
                       <p v-if="section.label"
@@ -688,17 +705,19 @@ async function updateLyrics() {
             class="fixed inset-x-0 top-1/2 z-50 mx-auto w-[calc(100%-2rem)] max-w-md -translate-y-1/2
                    rounded-md border border-brass-soft bg-white p-6 shadow-xl focus:outline-none"
             @close-auto-focus="restoreFocus">
-            <AlertDialogTitle class="font-display text-xl font-bold text-ink">Archive this song?</AlertDialogTitle>
+            <AlertDialogTitle class="font-display text-xl font-bold text-ink">
+              Archive this {{ archiveNoun }}?
+            </AlertDialogTitle>
             <AlertDialogDescription class="mt-2 text-sm text-ink-soft">
               <strong class="font-semibold text-ink">{{ del.shown.value?.song }}</strong>
               <template v-if="del.shown.value?.artist"> by {{ del.shown.value.artist }}</template>
-              will be removed from the library and set list. Its lyrics will be kept,
+              will be removed from the library and set list. Its {{ archiveBodyNoun }} will be kept,
               and you can restore it later.
             </AlertDialogDescription>
             <div class="mt-5 flex justify-end gap-2">
               <AlertDialogCancel as="button" class="btn">Cancel</AlertDialogCancel>
               <AlertDialogAction as="button" class="btn btn-primary" @click="reallyArchive">
-                Archive song
+                Archive {{ archiveNoun }}
               </AlertDialogAction>
             </div>
           </AlertDialogContent>

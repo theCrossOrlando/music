@@ -103,7 +103,7 @@ export const useStore = defineStore('lyrics', {
       const order = this.setGroupFor(kindOf(this.getLyric(id))).length
       return this.run(
         () => updateDoc(doc(db, 'lyrics', id), { enabled: true, order }),
-        'Could not add the song to the set list'
+        'Could not add that to the set list'
       )
     },
     disable(id) {
@@ -112,7 +112,7 @@ export const useStore = defineStore('lyrics', {
           enabled: false,
           order: deleteField()
         }),
-        'Could not remove the song from the set list'
+        'Could not remove that from the set list'
       )
     },
     // Record a CCLI decision. Batched so marking twenty liturgy rows is one
@@ -152,7 +152,7 @@ export const useStore = defineStore('lyrics', {
           }
           return batch.commit()
         },
-        'Could not merge those songs'
+        'Could not merge those'
       )
     },
 
@@ -180,7 +180,7 @@ export const useStore = defineStore('lyrics', {
           enabled: false,
           order: deleteField(),
         }),
-        'Could not archive the song'
+        'Could not archive that'
       )
     },
     restoreLyric(id) {
@@ -191,7 +191,7 @@ export const useStore = defineStore('lyrics', {
           enabled: false,
           order: deleteField(),
         }),
-        'Could not restore the song'
+        'Could not restore that'
       )
     },
     updateScripture(id) {
@@ -224,7 +224,9 @@ export const useStore = defineStore('lyrics', {
         enabled: rest.enabled === true,
       }
       if (!lyrics.song || !lyrics.lyrics) {
-        throw new Error('Song title and lyrics are both required.')
+        throw new Error(lyrics.kind === KIND.LITURGY
+          ? 'A title and the text are both required.'
+          : 'Song title and lyrics are both required.')
       }
       if (id) {
         // A row that changes kind while it is in the set list carries an order
