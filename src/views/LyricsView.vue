@@ -75,9 +75,11 @@ const activeLiturgyList = computed({
 // the split, with no empty second table and no heading over the only table
 // there is.
 const setGroups = computed(() => {
-  const groups = [{ key: 'songs', label: 'Songs', heading: 'Song', list: activeSongList }]
+  const groups = [
+    { key: 'songs', label: 'Songs', heading: 'Song', liturgy: false, list: activeSongList },
+  ]
   if (store.activeLiturgy.length) {
-    groups.push({ key: 'liturgy', label: 'Liturgy', heading: 'Title', list: activeLiturgyList })
+    groups.push({ key: 'liturgy', label: 'Liturgy', heading: 'Title', liturgy: true, list: activeLiturgyList })
   }
   return groups
 })
@@ -87,15 +89,16 @@ const setGroups = computed(() => {
 // the best match under a heading.
 const libraryGroups = computed(() => {
   if (store.search.query.trim()) {
-    return [{ key: 'results', label: null, heading: 'Song', rows: store.libraryRows }]
+    // Results mix both kinds, so the artist column stays.
+    return [{ key: 'results', label: null, heading: 'Song', liturgy: false, rows: store.libraryRows }]
   }
   const asRows = (songs) => songs.map((song) => ({ song, excerpt: [] }))
   const groups = [
-    { key: 'songs', label: 'Songs', heading: 'Song', rows: asRows(store.librarySongs) },
-    { key: 'liturgy', label: 'Liturgy', heading: 'Title', rows: asRows(store.libraryLiturgy) },
+    { key: 'songs', label: 'Songs', heading: 'Song', liturgy: false, rows: asRows(store.librarySongs) },
+    { key: 'liturgy', label: 'Liturgy', heading: 'Title', liturgy: true, rows: asRows(store.libraryLiturgy) },
   ].filter((group) => group.rows.length)
   // Nothing to show at all still needs somewhere to say so.
-  return groups.length ? groups : [{ key: 'songs', label: null, heading: 'Song', rows: [] }]
+  return groups.length ? groups : [{ key: 'songs', label: null, heading: 'Song', liturgy: false, rows: [] }]
 })
 
 const edit = ref({
@@ -407,7 +410,7 @@ async function updateLyrics() {
               <table class="table">
                 <thead>
                   <tr>
-                    <th scope="col">Artist</th>
+                    <th v-if="!group.liturgy" scope="col">Artist</th>
                     <th scope="col">{{ group.heading }}</th>
                     <th scope="col"><span class="sr-only">Actions</span></th>
                   </tr>
@@ -415,11 +418,18 @@ async function updateLyrics() {
                 <draggable v-model="group.list.value" tag="tbody" item-key="id" handle=".drag-handle">
                   <template #item="{ element }">
                     <tr class="group">
-                      <th scope="row">
+                      <th v-if="!group.liturgy" scope="row">
                         <span class="drag-handle mr-2 cursor-grab text-brass-soft group-hover:text-brass"
                           aria-hidden="true">⠿</span>{{ element.artist }}
                       </th>
-                      <td>{{ element.song }}</td>
+                      <!-- With no artist column the title is what identifies the row,
+                           so it becomes the row header and takes the drag handle.
+                           `.table tbody th` is styled as a td, so nothing shifts. -->
+                      <component :is="group.liturgy ? 'th' : 'td'" :scope="group.liturgy ? 'row' : undefined">
+                        <span v-if="group.liturgy"
+                          class="drag-handle mr-2 cursor-grab text-brass-soft group-hover:text-brass"
+                          aria-hidden="true">⠿</span>{{ element.song }}
+                      </component>
                       <td class="w-px text-right">
                         <DropdownMenuRoot>
                           <DropdownMenuTrigger as="button" class="btn btn-sm btn-icon"
@@ -491,15 +501,15 @@ async function updateLyrics() {
                 <table class="table">
                   <thead>
                     <tr>
-                      <th scope="col">Artist</th>
+                      <th v-if="!group.liturgy" scope="col">Artist</th>
                       <th scope="col">{{ group.heading }}</th>
                       <th scope="col"><span class="sr-only">Actions</span></th>
                     </tr>
                   </thead>
                   <tbody>
                     <tr v-for="{ song: lyric, excerpt } in group.rows" :key="lyric.id">
-                      <th scope="row">{{ lyric.artist }}</th>
-                      <td>
+                      <th v-if="!group.liturgy" scope="row">{{ lyric.artist }}</th>
+                      <component :is="group.liturgy ? 'th' : 'td'" :scope="group.liturgy ? 'row' : undefined">
                         {{ lyric.song }}
                         <!-- Where in the lyrics the match landed, as the sermon
                              search shows the line of the transcript it found. -->
@@ -507,7 +517,7 @@ async function updateLyrics() {
                           <template v-for="(segment, i) in excerpt" :key="i"><mark
                               v-if="segment.mark">{{ segment.text }}</mark><span v-else>{{ segment.text }}</span></template>
                         </p>
-                      </td>
+                      </component>
                       <td class="w-px text-right">
                         <DropdownMenuRoot>
                           <DropdownMenuTrigger as="button" class="btn btn-sm btn-icon"
