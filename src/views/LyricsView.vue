@@ -118,6 +118,10 @@ const bodyNounFor = (kind) => (kind === KIND.LITURGY ? 'text' : 'lyrics')
 const editNoun = computed(() => nounFor(edit.value.kind))
 const editBodyNoun = computed(() => bodyNounFor(edit.value.kind))
 const editBodyLabel = computed(() => (edit.value.kind === KIND.LITURGY ? 'Text' : 'Lyrics'))
+// Liturgy has no artist, no CCLI number and no copyright, and SongSelect has
+// never heard of the Confession. The whole song-metadata block goes away rather
+// than sitting there as four fields that will stay empty forever.
+const isLiturgyEdit = computed(() => edit.value.kind === KIND.LITURGY)
 
 // Reka drives the toast's lifetime; routing its close back through the store
 // means auto-dismiss and the close button clear the error by the same path.
@@ -597,12 +601,16 @@ async function updateLyrics() {
                 </p>
               </fieldset>
 
-              <div class="grid gap-3 sm:grid-cols-2">
-                <input type="text" class="input" v-model="edit.artist" placeholder="Artist" aria-label="Artist">
+              <!-- The title stays whatever the kind: it is required, and it is
+                   what both lists show. Everything else here is about songs. -->
+              <div class="grid gap-3" :class="isLiturgyEdit ? '' : 'sm:grid-cols-2'">
+                <input v-if="!isLiturgyEdit" type="text" class="input" v-model="edit.artist"
+                  placeholder="Artist" aria-label="Artist">
                 <div class="flex gap-2">
                   <input type="text" class="input" v-model="edit.song" placeholder="Title"
                     aria-label="Title">
-                  <a class="btn shrink-0 whitespace-nowrap" :href="songSelectUrl" target="_blank" rel="noopener">
+                  <a v-if="!isLiturgyEdit" class="btn shrink-0 whitespace-nowrap" :href="songSelectUrl"
+                    target="_blank" rel="noopener">
                     Find on SongSelect ↗
                   </a>
                 </div>
@@ -612,7 +620,7 @@ async function updateLyrics() {
                 “{{ duplicateOf.song }}” is already in the library{{ duplicateOf.artist ? ` by ${duplicateOf.artist}` : '' }}.
                 Saving this will create a second copy.
               </p>
-              <div class="grid gap-3 sm:grid-cols-2">
+              <div v-if="!isLiturgyEdit" class="grid gap-3 sm:grid-cols-2">
                 <input type="text" class="input" v-model="edit.ccliNumber" placeholder="CCLI song number"
                   aria-label="CCLI song number">
                 <input type="text" class="input" v-model="edit.copyright" placeholder="Copyright line"
@@ -624,7 +632,7 @@ async function updateLyrics() {
                   {{ editBodyLabel }}
                 </p>
                 <div class="flex items-center gap-3 text-xs">
-                  <button type="button" class="btn btn-sm" @click="importFromClipboard">
+                  <button v-if="!isLiturgyEdit" type="button" class="btn btn-sm" @click="importFromClipboard">
                     Import from SongSelect
                   </button>
                   <label class="btn btn-sm cursor-pointer">
