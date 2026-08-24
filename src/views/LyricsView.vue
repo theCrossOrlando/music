@@ -12,10 +12,15 @@ import {
   AlertDialogTitle, AlertDialogDescription, AlertDialogCancel, AlertDialogAction,
   ToastProvider, ToastRoot, ToastTitle, ToastDescription, ToastClose,
   ToastViewport,
+  AutocompleteRoot, AutocompleteAnchor, AutocompleteInput, AutocompletePortal,
+  AutocompleteContent, AutocompleteViewport, AutocompleteItem,
   VisuallyHidden,
 } from 'reka-ui'
 import { normalize, looksLikeChordPro, parseSections } from '@/lib/lyricsFormat.js'
 import { useConfirm } from '@/lib/useConfirm.js'
+import {
+  suggestBooks, completeBook, splitReferences, unknownBooks, bibleGatewayUrl,
+} from '@/lib/scripture.js'
 
 const store = useStore();
 const router = useRouter();
@@ -277,15 +282,46 @@ async function updateLyrics() {
         <!-- Scripture -->
         <section class="space-y-3">
           <h2 class="section-title">Scripture</h2>
-          <div v-for="scripture in store.scripture" :key="scripture.id" class="flex gap-2">
-            <div class="relative flex-1">
-              <span class="pointer-events-none absolute inset-y-0 left-3 flex items-center text-gold">
-                <font-awesome-icon icon="book" />
-              </span>
-              <input type="text" class="input pl-9" v-model="scripture.verse" placeholder="Scripture"
-                aria-label="Scripture">
+          <div v-for="scripture in store.scripture" :key="scripture.id" class="space-y-2">
+            <div class="flex gap-2">
+              <AutocompleteRoot v-model="scripture.verse" ignore-filter class="relative flex-1">
+                <AutocompleteAnchor>
+                  <span class="pointer-events-none absolute inset-y-0 left-3 z-10 flex items-center text-gold">
+                    <font-awesome-icon icon="book" />
+                  </span>
+                  <AutocompleteInput class="input pl-9" placeholder="Scripture" aria-label="Scripture" />
+                </AutocompleteAnchor>
+                <AutocompletePortal>
+                  <!-- The item's value is the whole field as it will read once
+                       the book is filled in, so picking one leaves an earlier
+                       reference and any chapter already typed alone. -->
+                  <AutocompleteContent v-if="suggestBooks(scripture.verse).length" position="popper"
+                    :side-offset="4" class="menu-panel">
+                    <AutocompleteViewport>
+                      <AutocompleteItem v-for="book in suggestBooks(scripture.verse)" :key="book"
+                        :value="completeBook(scripture.verse, book)" class="menu-item">
+                        {{ book }}
+                      </AutocompleteItem>
+                    </AutocompleteViewport>
+                  </AutocompleteContent>
+                </AutocompletePortal>
+              </AutocompleteRoot>
+              <button class="btn btn-primary" @click="store.updateScripture(scripture.id)">Update</button>
             </div>
-            <button class="btn btn-primary" @click="store.updateScripture(scripture.id)">Update</button>
+            <!-- The same links the sermon pages render, so the reference can be
+                 opened and checked before it is saved. -->
+            <p v-if="splitReferences(scripture.verse).length" class="scripture text-xs text-ink-soft">
+              <template v-for="(reference, i) in splitReferences(scripture.verse)" :key="reference">
+                <span v-if="i">, </span>
+                <a :href="bibleGatewayUrl(reference)" target="_blank" rel="noopener"
+                  class="text-gold underline underline-offset-2">{{ reference }}</a>
+              </template>
+            </p>
+            <p v-if="unknownBooks(scripture.verse).length" class="text-xs text-ink-soft">
+              {{ unknownBooks(scripture.verse).join(', ') }} —
+              {{ unknownBooks(scripture.verse).length === 1 ? 'not a book' : 'not books' }} I recognise.
+              It will still save.
+            </p>
           </div>
         </section>
 
