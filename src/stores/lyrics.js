@@ -15,6 +15,7 @@ import {
 } from 'firebase/firestore'
 import { getAuth, onAuthStateChanged, signOut } from 'firebase/auth'
 import { normalize } from '@/lib/lyricsFormat.js'
+import { search } from '@/lib/search.js'
 
 const db = getFirestore(firebase)
 const auth = getAuth(firebase)
@@ -45,8 +46,7 @@ export const useStore = defineStore('lyrics', {
     isLoading: false,
     error: '',
     search: {
-      artist: '',
-      song: '',
+      query: '',
     },
     scripture: []
   }),
@@ -290,18 +290,15 @@ export const useStore = defineStore('lyrics', {
       state.lyrics
         .filter(l => l.archived)
         .sort(byArtistThenSong),
-    filteredLyrics: (state) => {
-      const artist = state.search.artist.toLowerCase()
-      const song = state.search.song.toLowerCase()
-
-      if (artist === '' && song === '') {
-        return state.inactiveLyrics
+    // The library as rendered: ranked search results when there is a query,
+    // the plain browse list when there is not — the browse/results swap the
+    // sermon search on the public site does. Rows carry an excerpt so a hit
+    // deep in a lyric body can show where it landed.
+    libraryRows() {
+      if (!this.search.query.trim()) {
+        return this.inactiveLyrics.map(song => ({ song, excerpt: [] }))
       }
-
-      return state.inactiveLyrics.filter(l =>
-        (artist === '' || (l.artist ?? '').toLowerCase().includes(artist)) &&
-        (song === '' || (l.song ?? '').toLowerCase().includes(song))
-      )
+      return search(this.inactiveLyrics, this.search.query)
     },
   }
 })

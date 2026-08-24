@@ -1,5 +1,5 @@
 <script setup>
-import { computed, ref } from "vue";
+import { computed, onUnmounted, ref, watch } from "vue";
 import { RouterLink, useRouter } from "vue-router";
 import { useStore } from '@/stores/lyrics';
 import draggable from 'vuedraggable'
@@ -25,6 +25,26 @@ async function signOut() {
   await store.signOut()
   router.push('/')
 }
+
+// Typing is debounced into the store at the same 200 ms the sermon search on
+// the public site uses, so a long query does not re-rank the library on every
+// keystroke.
+const query = ref(store.search.query)
+let queryTimer
+watch(query, (value) => {
+  clearTimeout(queryTimer)
+  queryTimer = setTimeout(() => { store.search.query = value }, 200)
+})
+onUnmounted(() => clearTimeout(queryTimer))
+
+// The site's own phrasing, curly quotes and all.
+const searchStatus = computed(() => {
+  const n = store.libraryRows.length
+  const q = store.search.query.trim()
+  return n
+    ? `${n} song${n === 1 ? '' : 's'} match \u201C${q}\u201D`
+    : `No songs match \u201C${q}\u201D`
+})
 
 // draggable needs a writable binding, but activeLyrics is a derived getter.
 // The setter persists the new order instead of mutating the source; Firestore's
@@ -348,24 +368,19 @@ async function updateLyrics() {
               </RouterLink>
             </div>
           </div>
-          <div class="grid gap-2 sm:grid-cols-2">
-            <div class="relative">
-              <span class="pointer-events-none absolute inset-y-0 left-3 flex items-center text-gold">
-                <font-awesome-icon icon="music" />
-              </span>
-              <input class="input pl-9" type="search" v-model="store.search.song" placeholder="Search song"
-                aria-label="Search song">
-            </div>
-            <div class="relative">
-              <span class="pointer-events-none absolute inset-y-0 left-3 flex items-center text-gold">
-                <font-awesome-icon icon="user" />
-              </span>
-              <input class="input pl-9" type="search" v-model="store.search.artist" placeholder="Search artist"
-                aria-label="Search artist">
-            </div>
+          <div class="relative">
+            <span class="pointer-events-none absolute inset-y-0 left-3 flex items-center text-gold">
+              <font-awesome-icon icon="magnifying-glass" />
+            </span>
+            <input class="input pl-9" type="search" v-model="query"
+              placeholder="Search songs, artists &amp; lyrics…" aria-label="Search the library"
+              aria-controls="library-results">
           </div>
+          <p v-if="store.search.query.trim()" class="text-xs text-ink-soft" aria-live="polite">
+            {{ searchStatus }}
+          </p>
 
-          <div class="table-wrap">
+          <div class="table-wrap" id="library-results">
             <table class="table">
               <thead>
                 <tr>
@@ -375,9 +390,17 @@ async function updateLyrics() {
                 </tr>
               </thead>
               <tbody>
-                <tr v-for="lyric in store.filteredLyrics" :key="lyric.id">
+                <tr v-for="{ song: lyric, excerpt } in store.libraryRows" :key="lyric.id">
                   <th scope="row">{{ lyric.artist }}</th>
-                  <td>{{ lyric.song }}</td>
+                  <td>
+                    {{ lyric.song }}
+                    <!-- Where in the lyrics the match landed, as the sermon
+                         search shows the line of the transcript it found. -->
+                    <p v-if="excerpt.length" class="search-excerpt mt-1 max-w-prose text-xs text-ink-soft">
+                      <template v-for="(segment, i) in excerpt" :key="i"><mark
+                          v-if="segment.mark">{{ segment.text }}</mark><span v-else>{{ segment.text }}</span></template>
+                    </p>
+                  </td>
                   <td class="w-px text-right">
                     <DropdownMenuRoot>
                       <DropdownMenuTrigger as="button" class="btn btn-sm btn-icon"
@@ -406,10 +429,8 @@ async function updateLyrics() {
                 </tr>
               </tbody>
             </table>
-            <p v-if="!store.filteredLyrics.length" class="px-4 py-8 text-center text-sm text-ink-soft">
-              {{ store.search.song || store.search.artist
-                ? 'No songs match that search.'
-                : 'The library is empty.' }}
+            <p v-if="!store.libraryRows.length" class="px-4 py-8 text-center text-sm text-ink-soft">
+              {{ store.search.query.trim() ? searchStatus : 'The library is empty.' }}
             </p>
           </div>
         </section>
