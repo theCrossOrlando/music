@@ -22,6 +22,12 @@
 }
 
 @layer base {
+  :root {
+    /* The height of the sticky site header. Table headers stick directly
+       beneath it, so this has to track the <header> in LyricsView.vue. */
+    --app-header-height: 55px;
+  }
+
   html {
     -webkit-text-size-adjust: 100%;
   }
@@ -74,18 +80,28 @@
     @apply font-display text-2xl font-bold tracking-tight text-ink;
   }
 
+  /* clip, not auto: overflow-x:auto computes overflow-y to auto as well, which
+     makes this a scroll container — and sticky headers inside a scroll
+     container anchor to it rather than to the viewport. Since the wrapper is
+     as tall as its content and never scrolls, they would never move. clip
+     creates no scroll container, leaves overflow-y visible, and still clips
+     the rounded corners. The widest table needs 291px, so the horizontal
+     scrolling this replaces was never reachable anyway. */
   .table-wrap {
-    @apply overflow-x-auto rounded-md border border-brass-soft bg-white;
+    @apply overflow-x-clip rounded-md border border-brass-soft bg-white;
   }
 
   .table {
     @apply w-full border-collapse text-left text-sm;
   }
 
-  /* Arvo uppercase — the site's label voice. */
+  /* Arvo uppercase — the site's label voice. Pinned under the site header so
+     the columns stay named 160 rows into the library. The opaque background is
+     load-bearing: rows pass underneath it. */
   .table thead th {
-    @apply border-b border-brass-soft bg-brass-wash px-4 py-2.5 font-label text-[11px]
-           font-normal uppercase tracking-wider text-ink-soft;
+    @apply sticky z-10 border-b border-brass-soft bg-brass-wash px-4 py-2.5 font-label
+           text-[11px] font-normal uppercase tracking-wider text-ink-soft;
+    top: var(--app-header-height);
   }
 
   .table tbody td,
