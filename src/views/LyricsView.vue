@@ -579,11 +579,15 @@ async function updateLyrics() {
       <DialogRoot v-model:open="showModal">
         <DialogPortal>
           <DialogOverlay class="fixed inset-0 z-40 bg-ink/50" />
+          <!-- Capped at the viewport with the fields scrolling between a fixed
+               title and a fixed footer: uncapped, a phone-height stack hangs off
+               both edges of a fixed box that nothing can scroll. -->
           <DialogContent
-            class="fixed inset-x-0 top-1/2 z-50 mx-auto w-[calc(100%-2rem)] max-w-2xl -translate-y-1/2 lg:max-w-5xl
-                   rounded-md border border-brass-soft bg-white p-6 shadow-xl focus:outline-none"
+            class="fixed inset-x-0 top-1/2 z-50 mx-auto flex max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)]
+                   max-w-2xl -translate-y-1/2 flex-col lg:max-w-5xl
+                   rounded-md border border-brass-soft bg-white shadow-xl focus:outline-none"
             @close-auto-focus="restoreFocus">
-            <DialogTitle class="font-display text-xl font-bold text-ink">
+            <DialogTitle class="shrink-0 px-6 pt-6 font-display text-xl font-bold text-ink">
               {{ edit.id ? `Edit ${editNoun}` : `Add a ${editNoun}` }}
             </DialogTitle>
             <VisuallyHidden as-child>
@@ -592,7 +596,7 @@ async function updateLyrics() {
               </DialogDescription>
             </VisuallyHidden>
 
-            <div class="mt-4 space-y-3">
+            <div class="min-h-0 flex-1 space-y-3 overflow-y-auto px-6 py-4">
               <!-- First, because it changes what everything below it means. A
                    two-way exclusive choice is what native radios are for; reka
                    is worth reaching for when it buys behaviour HTML lacks. -->
@@ -679,7 +683,10 @@ async function updateLyrics() {
               </p>
 
               <div class="grid gap-3" :class="showPreview ? 'lg:grid-cols-2' : ''">
-                <textarea class="input font-mono text-xs leading-relaxed" v-model="edit.lyrics"
+                <!-- rows=16 is most of a phone screen on its own, which buries
+                     the title and the toolbar above it. -->
+                <textarea class="input max-h-[50dvh] font-mono text-xs leading-relaxed lg:max-h-none"
+                  v-model="edit.lyrics"
                   :placeholder="`Paste from SongSelect, drop an exported file, or type the ${editBodyNoun} here`"
                   rows="16" :aria-label="editBodyLabel"
                   @paste="onLyricsPaste" @drop="onDrop" @dragover.prevent></textarea>
@@ -707,7 +714,7 @@ async function updateLyrics() {
               <p v-if="formError" class="text-sm text-red-600">{{ formError }}</p>
             </div>
 
-            <div class="mt-5 flex justify-end gap-2">
+            <div class="shrink-0 flex justify-end gap-2 px-6 pb-6 pt-4">
               <DialogClose as="button" class="btn">Cancel</DialogClose>
               <button class="btn btn-primary" @click="updateLyrics">Save</button>
             </div>
