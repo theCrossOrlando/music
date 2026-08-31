@@ -18,7 +18,7 @@ import {
 } from 'reka-ui'
 import { normalize, looksLikeChordPro, parseSections } from '@/lib/lyricsFormat.js'
 import { useConfirm } from '@/lib/useConfirm.js'
-import { KIND, kindOf } from '@/lib/kind.js'
+import { KIND, kindOf, isLiturgyItem } from '@/lib/kind.js'
 import {
   suggestBooks, completeBook, splitReferences, unknownBooks, bibleGatewayUrl,
 } from '@/lib/scripture.js'
@@ -57,36 +57,18 @@ const searchStatus = computed(() => {
 // The setter persists the new order instead of mutating the source; Firestore's
 // latency compensation re-emits the snapshot immediately, so the list does not
 // snap back while the write is in flight.
-//
-// One binding per group, and deliberately no shared vuedraggable `group`: a row
-// is a song or liturgy because of its `kind`, which is changed in the edit
-// modal — not something to be established by dragging it over a heading.
-const activeSongList = computed({
-  get: () => store.activeSongs,
-  set: (ordered) => store.saveOrder(ordered),
-})
-const activeLiturgyList = computed({
-  get: () => store.activeLiturgy,
+const setList = computed({
+  get: () => store.activeLyrics,
   set: (ordered) => store.saveOrder(ordered),
 })
 
-// Songs always render — the empty state lives there. Liturgy appears only once
-// the set list has some, so a Sunday without any looks exactly as it did before
-// the split, with no empty second table and no heading over the only table
-// there is.
-const setGroups = computed(() => {
-  const groups = [
-    { key: 'songs', label: 'Songs', heading: 'Song', liturgy: false, list: activeSongList },
-  ]
-  if (store.activeLiturgy.length) {
-    groups.push({ key: 'liturgy', label: 'Liturgy', heading: 'Title', liturgy: true, list: activeLiturgyList })
-  }
-  return groups
-})
+// An artist left on a row since marked liturgy is suppressed here, as the
+// public page and the modal preview suppress the byline.
+const artistOf = (song) => (isLiturgyItem(song) ? '' : song.artist)
 
-// The browse list splits the same way. A search does not: ranking across the
-// whole library is the entire point of that list, and splitting it would bury
-// the best match under a heading.
+// The browse list splits by kind. A search does not: ranking across the whole
+// library is the entire point of that list, and splitting it would bury the
+// best match under a heading.
 const libraryGroups = computed(() => {
   if (store.search.query.trim()) {
     // Results mix both kinds, so the artist column stays.
@@ -400,69 +382,59 @@ async function updateLyrics() {
             </button>
           </div>
 
-          <!-- One draggable table per group. `group.list` is a writable
-               computed rather than a plain array, so it is reached through
-               .value here; each one persists only its own group's order. -->
-          <div v-for="group in setGroups" :key="group.key" class="space-y-2">
-            <h3 v-if="setGroups.length > 1"
-              class="font-label text-[11px] uppercase tracking-wider text-gold">{{ group.label }}</h3>
-            <div class="table-wrap">
-              <table class="table">
-                <thead>
-                  <tr>
-                    <th v-if="!group.liturgy" scope="col">Artist</th>
-                    <th scope="col">{{ group.heading }}</th>
-                    <th scope="col"><span class="sr-only">Actions</span></th>
+          <!-- One table: a service interleaves songs and liturgy, and the order
+               they are dragged into is the order they are played. Title first —
+               it is the only column every row fills, so it is the row header and
+               takes the handle. `.table tbody th` is styled as a td. -->
+          <div class="table-wrap">
+            <table class="table">
+              <thead>
+                <tr>
+                  <th scope="col">Title</th>
+                  <th scope="col">Artist</th>
+                  <th scope="col"><span class="sr-only">Actions</span></th>
+                </tr>
+              </thead>
+              <draggable v-model="setList" tag="tbody" item-key="id" handle=".drag-handle">
+                <template #item="{ element }">
+                  <tr class="group">
+                    <th scope="row">
+                      <span class="drag-handle mr-2 cursor-grab text-brass-soft group-hover:text-brass"
+                        aria-hidden="true">⠿</span>{{ element.song }}
+                    </th>
+                    <td>{{ artistOf(element) }}</td>
+                    <td class="w-px text-right">
+                      <DropdownMenuRoot>
+                        <DropdownMenuTrigger as="button" class="btn btn-sm btn-icon"
+                          :data-focus-key="`row-menu-${element.id}`"
+                          :aria-label="`Actions for ${element.song}`">
+                          <font-awesome-icon icon="ellipsis" />
+                        </DropdownMenuTrigger>
+                        <DropdownMenuPortal>
+                          <DropdownMenuContent class="menu-panel" align="end" :side-offset="4"
+                            @close-auto-focus="onMenuCloseAutoFocus">
+                            <DropdownMenuItem as="button" class="menu-item" @select="displayModal(element.id)">
+                              Edit
+                            </DropdownMenuItem>
+                            <DropdownMenuItem as="button" class="menu-item" @select="store.disable(element.id)">
+                              Remove from set list
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator class="my-1 h-px bg-brass-soft" />
+                            <DropdownMenuItem as="button" class="menu-item"
+                              @select="confirmArchive(element)">
+                              Archive…
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenuPortal>
+                      </DropdownMenuRoot>
+                    </td>
                   </tr>
-                </thead>
-                <draggable v-model="group.list.value" tag="tbody" item-key="id" handle=".drag-handle">
-                  <template #item="{ element }">
-                    <tr class="group">
-                      <th v-if="!group.liturgy" scope="row">
-                        <span class="drag-handle mr-2 cursor-grab text-brass-soft group-hover:text-brass"
-                          aria-hidden="true">⠿</span>{{ element.artist }}
-                      </th>
-                      <!-- With no artist column the title is what identifies the row,
-                           so it becomes the row header and takes the drag handle.
-                           `.table tbody th` is styled as a td, so nothing shifts. -->
-                      <component :is="group.liturgy ? 'th' : 'td'" :scope="group.liturgy ? 'row' : undefined">
-                        <span v-if="group.liturgy"
-                          class="drag-handle mr-2 cursor-grab text-brass-soft group-hover:text-brass"
-                          aria-hidden="true">⠿</span>{{ element.song }}
-                      </component>
-                      <td class="w-px text-right">
-                        <DropdownMenuRoot>
-                          <DropdownMenuTrigger as="button" class="btn btn-sm btn-icon"
-                            :data-focus-key="`row-menu-${element.id}`"
-                            :aria-label="`Actions for ${element.song}`">
-                            <font-awesome-icon icon="ellipsis" />
-                          </DropdownMenuTrigger>
-                          <DropdownMenuPortal>
-                            <DropdownMenuContent class="menu-panel" align="end" :side-offset="4"
-                              @close-auto-focus="onMenuCloseAutoFocus">
-                              <DropdownMenuItem as="button" class="menu-item" @select="displayModal(element.id)">
-                                Edit
-                              </DropdownMenuItem>
-                              <DropdownMenuItem as="button" class="menu-item" @select="store.disable(element.id)">
-                                Remove from set list
-                              </DropdownMenuItem>
-                              <DropdownMenuSeparator class="my-1 h-px bg-brass-soft" />
-                              <DropdownMenuItem as="button" class="menu-item"
-                                @select="confirmArchive(element)">
-                                Archive…
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenuPortal>
-                        </DropdownMenuRoot>
-                      </td>
-                    </tr>
-                  </template>
-                </draggable>
-              </table>
-              <p v-if="!group.list.value.length" class="px-4 py-8 text-center text-sm text-ink-soft">
-                No songs in the set list yet. Add one from the library below.
-              </p>
-            </div>
+                </template>
+              </draggable>
+            </table>
+            <p v-if="!setList.length" class="px-4 py-8 text-center text-sm text-ink-soft">
+              Nothing in the set list yet. Add something from the library below.
+            </p>
           </div>
         </section>
 

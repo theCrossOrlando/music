@@ -16,7 +16,7 @@ import {
 import { getAuth, onAuthStateChanged, signOut } from 'firebase/auth'
 import { normalize } from '@/lib/lyricsFormat.js'
 import { search } from '@/lib/search.js'
-import { KIND, kindOf, partition } from '@/lib/kind.js'
+import { KIND, kindOf, isLiturgyItem, partition } from '@/lib/kind.js'
 
 const db = getFirestore(firebase)
 const auth = getAuth(firebase)
@@ -28,7 +28,12 @@ const colRefScripture = collection(db, 'scripture')
 // while local array order matches query order, which drag-to-reorder breaks.
 const toDocs = (snapshot) => snapshot.docs.map(d => ({ id: d.id, ...d.data() }))
 
-const byOrder = (a, b) => (a.order ?? 0) - (b.order ?? 0)
+// Rows written while songs and liturgy each had their own 0..n sequence carry
+// duplicate order values. Liturgy-last on a tie reproduces what the two stacked
+// tables showed; the first drag writes a unique 0..n and it never fires again.
+const byOrderThenSongsFirst = (a, b) =>
+  (a.order ?? 0) - (b.order ?? 0) ||
+  (isLiturgyItem(a) ? 1 : 0) - (isLiturgyItem(b) ? 1 : 0)
 
 const byArtistThenSong = (a, b) =>
   (a.artist ?? '').localeCompare(b.artist ?? '') ||
@@ -97,10 +102,8 @@ export const useStore = defineStore('lyrics', {
         return false
       }
     },
-    // Songs and liturgy each carry their own 0..n sequence, so the new index is
-    // the size of the group being joined — not of the set list as a whole.
     enable(id) {
-      const order = this.setGroupFor(kindOf(this.getLyric(id))).length
+      const order = this.activeLyrics.length
       return this.run(
         () => updateDoc(doc(db, 'lyrics', id), { enabled: true, order }),
         'Could not add that to the set list'
@@ -229,12 +232,6 @@ export const useStore = defineStore('lyrics', {
           : 'Song title and lyrics are both required.')
       }
       if (id) {
-        // A row that changes kind while it is in the set list carries an order
-        // from a sequence it is no longer part of, where it would land at some
-        // arbitrary point in the group it joined. Re-seat it at the end.
-        if (lyrics.enabled && existing && kindOf(existing) !== lyrics.kind) {
-          lyrics.order = this.setGroupFor(lyrics.kind).length
-        }
         await updateDoc(doc(db, 'lyrics', id), lyrics)
       }
       else {
@@ -289,30 +286,18 @@ export const useStore = defineStore('lyrics', {
     getLyric: (state) => {
       return (id) => state.lyrics.find(l => l.id === id)
     },
-    // The set list, split in two. Songs and liturgy render as separate sections
-    // on both this page and the public one, so their relative interleaving is
-    // not visible anywhere to be expressed — each group carries its own 0..n
-    // `order` instead, and every consumer partitions before it sorts. Duplicate
-    // order values across the two groups therefore never meet.
-    activeSet: (state) => partition(state.lyrics.filter(l => l.enabled && !l.archived)),
-    // partition() hands back fresh arrays, so sorting them in place is safe.
-    activeSongs() { return this.activeSet.songs.sort(byOrder) },
-    activeLiturgy() { return this.activeSet.liturgy.sort(byOrder) },
-    // The whole set list in the order it is played, for anything that wants it
-    // as one sequence.
-    activeLyrics() { return [...this.activeSongs, ...this.activeLiturgy] },
-    // Which sequence a kind belongs to. Used to place a row joining the set
-    // list, or moving between the groups.
-    setGroupFor() {
-      return (kind) => (kind === KIND.LITURGY ? this.activeLiturgy : this.activeSongs)
-    },
+    // The set list in the order it is played — one sequence, because a service
+    // interleaves them: Call To Worship, a hymn, Confession.
+    activeLyrics: (state) =>
+      state.lyrics.filter(l => l.enabled && !l.archived).sort(byOrderThenSongsFirst),
     // A falsy test rather than enabled === false, so songs imported without the
     // field still appear in the library instead of vanishing from both lists.
     inactiveLyrics: (state) =>
       state.lyrics
         .filter(l => !l.enabled && !l.archived)
         .sort(byArtistThenSong),
-    // The browse list, split the same way. Already sorted by inactiveLyrics.
+    // The browse list keeps the split: it is a reference shelf, not a running
+    // order. Already sorted by inactiveLyrics.
     librarySongs() { return partition(this.inactiveLyrics).songs },
     libraryLiturgy() { return partition(this.inactiveLyrics).liturgy },
     availableLyrics: (state) =>
