@@ -211,7 +211,7 @@ function setToastOpen(open) {
               and lyrics all come across — you'll see exactly what changes before saving.
             </p>
 
-            <textarea class="input font-mono text-xs" rows="4" :value="pasted"
+            <textarea class="input font-mono text-xs pointer-coarse:text-base" rows="4" :value="pasted"
               aria-label="Paste from SongSelect"
               placeholder="Paste the SongSelect export here" @paste="onPaste"></textarea>
 

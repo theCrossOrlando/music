@@ -650,7 +650,7 @@ async function updateLyrics() {
               <div class="grid gap-3" :class="showPreview ? 'lg:grid-cols-2' : ''">
                 <!-- rows=16 is most of a phone screen on its own, which buries
                      the title and the toolbar above it. -->
-                <textarea class="input max-h-[50dvh] font-mono text-xs leading-relaxed lg:max-h-none"
+                <textarea class="input max-h-[50dvh] font-mono text-xs leading-relaxed pointer-coarse:text-base lg:max-h-none"
                   v-model="edit.lyrics"
                   :placeholder="`Paste from SongSelect, drop an exported file, or type the ${editBodyNoun} here`"
                   rows="16" :aria-label="editBodyLabel"

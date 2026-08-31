@@ -64,8 +64,11 @@
     @apply px-2.5;
   }
 
+  /* 16px on touch, because iOS Safari zooms the page in on any field it
+     focuses below that — pinch-zoom is a separate thing and stays. */
   .input {
     @apply block w-full rounded-md border border-brass-soft bg-white px-3 py-2 text-sm
+           pointer-coarse:text-base
            text-ink placeholder:text-ink-faint
            focus:border-brass focus:outline-2 focus:outline-offset-0 focus:outline-brass;
   }
