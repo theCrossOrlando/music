@@ -74,10 +74,9 @@ const libraryGroups = computed(() => {
     // Results mix both kinds, so the artist column stays.
     return [{ key: 'results', label: null, heading: 'Song', liturgy: false, rows: store.libraryRows }]
   }
-  const asRows = (songs) => songs.map((song) => ({ song, excerpt: [] }))
   const groups = [
-    { key: 'songs', label: 'Songs', heading: 'Song', liturgy: false, rows: asRows(store.librarySongs) },
-    { key: 'liturgy', label: 'Liturgy', heading: 'Title', liturgy: true, rows: asRows(store.libraryLiturgy) },
+    { key: 'songs', label: 'Songs', heading: 'Song', liturgy: false, rows: store.librarySongs },
+    { key: 'liturgy', label: 'Liturgy', heading: 'Title', liturgy: true, rows: store.libraryLiturgy },
   ].filter((group) => group.rows.length)
   // Nothing to show at all still needs somewhere to say so.
   return groups.length ? groups : [{ key: 'songs', label: null, heading: 'Song', liturgy: false, rows: [] }]
@@ -456,7 +455,7 @@ async function updateLyrics() {
               <font-awesome-icon icon="magnifying-glass" />
             </span>
             <input class="input pl-9" type="search" v-model="query"
-              placeholder="Search titles, artists &amp; text…" aria-label="Search the library"
+              placeholder="Search titles &amp; artists…" aria-label="Search the library"
               aria-controls="library-results">
           </div>
           <p v-if="store.search.query.trim()" class="text-xs text-ink-soft" aria-live="polite">
@@ -479,16 +478,10 @@ async function updateLyrics() {
                     </tr>
                   </thead>
                   <tbody>
-                    <tr v-for="{ song: lyric, excerpt } in group.rows" :key="lyric.id">
+                    <tr v-for="lyric in group.rows" :key="lyric.id">
                       <th v-if="!group.liturgy" scope="row">{{ lyric.artist }}</th>
                       <component :is="group.liturgy ? 'th' : 'td'" :scope="group.liturgy ? 'row' : undefined">
                         {{ lyric.song }}
-                        <!-- Where in the lyrics the match landed, as the sermon
-                             search shows the line of the transcript it found. -->
-                        <p v-if="excerpt.length" class="search-excerpt mt-1 max-w-prose text-xs text-ink-soft">
-                          <template v-for="(segment, i) in excerpt" :key="i"><mark
-                              v-if="segment.mark">{{ segment.text }}</mark><span v-else>{{ segment.text }}</span></template>
-                        </p>
                       </component>
                       <td class="w-px text-right">
                         <DropdownMenuRoot>

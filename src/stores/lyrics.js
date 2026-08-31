@@ -306,15 +306,12 @@ export const useStore = defineStore('lyrics', {
       state.lyrics
         .filter(l => l.archived)
         .sort(byArtistThenSong),
-    // The library as rendered: ranked search results when there is a query,
-    // the plain browse list when there is not — the browse/results swap the
-    // sermon search on the public site does. Rows carry an excerpt so a hit
-    // deep in a lyric body can show where it landed.
+    // The library as rendered: ranked search results when there is a query, the
+    // plain browse list when there is not — the browse/results swap the sermon
+    // search on the public site does.
     libraryRows() {
-      if (!this.search.query.trim()) {
-        return this.inactiveLyrics.map(song => ({ song, excerpt: [] }))
-      }
-      return search(this.inactiveLyrics, this.search.query)
+      if (!this.search.query.trim()) return this.inactiveLyrics
+      return search(this.inactiveLyrics, this.search.query).map((result) => result.song)
     },
   }
 })

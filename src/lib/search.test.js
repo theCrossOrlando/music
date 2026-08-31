@@ -26,8 +26,6 @@ const WELL = {
 const LIBRARY = [GOODNESS, GRACE, WELL]
 
 const titles = (results) => results.map((r) => r.song.song)
-const marked = (result) => result.excerpt.filter((s) => s.mark).map((s) => s.text)
-const text = (result) => result.excerpt.map((s) => s.text).join('')
 
 describe('parseQuery', () => {
   it('folds punctuation and case the way the library is normalised', () => {
@@ -52,8 +50,14 @@ describe('search', () => {
     expect(titles(search(LIBRARY, 'spafford'))).toEqual(['It Is Well With My Soul'])
   })
 
-  it('finds a song by a line from its lyrics', () => {
-    expect(titles(search(LIBRARY, 'billows'))).toEqual(['It Is Well With My Soul'])
+  it('does not read the lyrics: a word only the body has finds nothing', () => {
+    expect(titles(search(LIBRARY, 'billows'))).toEqual([])
+  })
+
+  it('narrows a title match rather than widening it with body hits', () => {
+    // "grace" is in the title of one and the first line of the same song, and
+    // "amazing" is in both — neither reaches past the title.
+    expect(titles(search(LIBRARY, 'grace'))).toEqual(['Amazing Grace (My Chains Are Gone)'])
   })
 
   it('matches a word by prefix, so "amazing" is found from "amaz"', () => {
@@ -65,8 +69,8 @@ describe('search', () => {
   })
 
   it('narrows on a second term instead of widening', () => {
-    // "my" is in all three; "chains" is in one.
-    expect(titles(search(LIBRARY, 'my'))).toHaveLength(3)
+    // "my" is in two titles; "chains" is in one.
+    expect(titles(search(LIBRARY, 'my'))).toHaveLength(2)
     expect(titles(search(LIBRARY, 'my chains'))).toEqual(['Amazing Grace (My Chains Are Gone)'])
   })
 
@@ -78,21 +82,19 @@ describe('search', () => {
     expect(titles(search(LIBRARY, 'tomlin grace'))).toEqual(['Amazing Grace (My Chains Are Gone)'])
   })
 
-  it('ranks a title match above a body match', () => {
-    // "goodness" is the title of one and the last line of the same song, but
-    // "God" appears in both — the titled one has to come first.
-    const results = search([WELL, GOODNESS], 'god')
-    expect(results[0].song.song).toBe('Goodness of God')
+  it('ranks a title match above an artist match', () => {
+    const named = { id: '4', artist: 'Goodness Collective', song: 'Another Song', lyrics: '' }
+    expect(titles(search([named, GOODNESS], 'goodness'))[0]).toBe('Goodness of God')
   })
 
-  it('does not let a repeated word outrank a title', () => {
+  it('does not let a repeated word in the body count at all', () => {
     const chorus = {
-      id: '4',
+      id: '5',
       artist: 'Someone',
       song: 'Another Song',
       lyrics: 'goodness goodness goodness goodness goodness goodness goodness',
     }
-    expect(titles(search([chorus, GOODNESS], 'goodness'))[0]).toBe('Goodness of God')
+    expect(titles(search([chorus, GOODNESS], 'goodness'))).toEqual(['Goodness of God'])
   })
 
   it('keeps the given order when scores tie', () => {
@@ -103,39 +105,3 @@ describe('search', () => {
   })
 })
 
-describe('excerpts', () => {
-  it('marks the matched words in the original spelling', () => {
-    const [result] = search(LIBRARY, 'billows')
-    expect(marked(result)).toEqual(['billows'])
-    expect(text(result)).toContain('sea billows roll')
-  })
-
-  it('marks every term that appears in the body', () => {
-    const [result] = search(LIBRARY, 'chains gone')
-    expect(marked(result).map((w) => w.toLowerCase()).sort()).toEqual(['chains', 'gone'])
-  })
-
-  it('windows a long body around the match rather than dumping it', () => {
-    const long = {
-      id: '5',
-      artist: '',
-      song: 'Long One',
-      lyrics: `${'padding '.repeat(60)}sparrow${' padding'.repeat(60)}`,
-    }
-    const [result] = search([long], 'sparrow')
-    const words = text(result).split(/\s+/).filter(Boolean)
-    expect(words.length).toBeLessThanOrEqual(32) // 30 words plus the two ellipses
-    expect(marked(result)).toEqual(['sparrow'])
-    expect(text(result).startsWith('…')).toBe(true)
-    expect(text(result).endsWith('…')).toBe(true)
-  })
-
-  it('gives no excerpt when only the title or artist matched', () => {
-    expect(search(LIBRARY, 'spafford')[0].excerpt).toEqual([])
-  })
-
-  it('leaves a short body whole, with no ellipses', () => {
-    const [result] = search([GRACE], 'wretch')
-    expect(text(result).startsWith('…')).toBe(false)
-  })
-})

@@ -118,11 +118,6 @@
     @apply bg-brass-wash/60;
   }
 
-  /* The excerpt highlight from the public site's sermon search, same colour. */
-  .search-excerpt mark {
-    @apply bg-[#fbeec2] px-[0.1em] text-ink;
-  }
-
   .menu-item {
     @apply flex w-full cursor-pointer items-center rounded px-3 py-2 text-left text-sm
            text-ink select-none
