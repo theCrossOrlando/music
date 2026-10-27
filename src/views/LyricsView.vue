@@ -42,6 +42,18 @@ watch(query, (value) => {
   queryTimer = setTimeout(() => { store.search.query = value }, 200)
 })
 onUnmounted(() => clearTimeout(queryTimer))
+const searchInput = ref(null)
+
+// Adding is the end of one search and the start of the next, so clear the box
+// and hand focus back to it once the menu has closed.
+let focusSearchOnClose = false
+function addToSetList(id) {
+  clearTimeout(queryTimer)
+  query.value = ''
+  store.search.query = ''
+  focusSearchOnClose = true
+  store.enable(id)
+}
 
 // The site's phrasing, curly quotes and all — but counted in results rather
 // than songs, because this list spans the liturgy too.
@@ -139,7 +151,11 @@ function restoreFocus(event) {
 // Suppress it only when an overlay is taking over; the plain items still
 // restore normally.
 function onMenuCloseAutoFocus(event) {
-  if (showModal.value || del.shown.value) event.preventDefault()
+  if (focusSearchOnClose) {
+    focusSearchOnClose = false
+    event.preventDefault()
+    searchInput.value?.focus()
+  } else if (showModal.value || del.shown.value) event.preventDefault()
 }
 
 // Confirm archiving by name so an accidental menu click cannot hide a song.
@@ -454,7 +470,7 @@ async function updateLyrics() {
             <span class="pointer-events-none absolute inset-y-0 left-3 flex items-center text-gold">
               <font-awesome-icon icon="magnifying-glass" />
             </span>
-            <input class="input pl-9" type="search" v-model="query"
+            <input ref="searchInput" class="input pl-9" type="search" v-model="query"
               placeholder="Search titles &amp; artists…" aria-label="Search the library"
               aria-controls="library-results">
           </div>
@@ -496,7 +512,7 @@ async function updateLyrics() {
                               <DropdownMenuItem as="button" class="menu-item" @select="displayModal(lyric.id)">
                                 Edit
                               </DropdownMenuItem>
-                              <DropdownMenuItem as="button" class="menu-item" @select="store.enable(lyric.id)">
+                              <DropdownMenuItem as="button" class="menu-item" @select="addToSetList(lyric.id)">
                                 Add to set list
                               </DropdownMenuItem>
                               <DropdownMenuSeparator class="my-1 h-px bg-brass-soft" />
