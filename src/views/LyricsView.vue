@@ -17,6 +17,7 @@ import {
   VisuallyHidden,
 } from 'reka-ui'
 import { normalize, looksLikeChordPro, parseSections } from '@/lib/lyricsFormat.js'
+import { renderMarkdown } from '@/lib/markdown.js'
 import { useConfirm } from '@/lib/useConfirm.js'
 import { KIND, kindOf, isLiturgyItem } from '@/lib/kind.js'
 import {
@@ -663,6 +664,8 @@ async function updateLyrics() {
                 This still looks like ChordPro. “Tidy formatting” will convert the sections and remove the chords.
               </p>
 
+              <p class="text-xs text-ink-soft">Markdown is supported, including **bold**, *italics*, and links.</p>
+
               <div class="grid gap-3" :class="showPreview ? 'lg:grid-cols-2' : ''">
                 <!-- rows=16 is most of a phone screen on its own, which buries
                      the title and the toolbar above it. -->
@@ -672,7 +675,7 @@ async function updateLyrics() {
                   rows="16" :aria-label="editBodyLabel"
                   @paste="onLyricsPaste" @drop="onDrop" @dragover.prevent></textarea>
 
-                <!-- Rendered by the same parser the public page uses. -->
+                <!-- Preview uses the same section and Markdown rules as the public page. -->
                 <div v-if="showPreview"
                   class="max-h-[26rem] overflow-y-auto rounded-md border border-brass-soft bg-paper p-4">
                   <p class="font-display text-2xl font-bold text-ink">{{ edit.song || 'Title' }}</p>
@@ -685,10 +688,10 @@ async function updateLyrics() {
                     <div v-for="(section, i) in previewSections" :key="i" class="mt-4 first:mt-0">
                       <p v-if="section.label"
                         class="font-label text-[11px] uppercase tracking-wider text-gold">{{ section.label }}</p>
-                      <p class="whitespace-pre-wrap text-sm text-ink">{{ section.body }}</p>
+                      <div class="text-sm text-ink [&_p+p]:mt-4 [&_ul]:list-disc [&_ol]:list-decimal [&_ul]:pl-5 [&_ol]:pl-5 [&_a]:underline" v-html="renderMarkdown(section.body)"></div>
                     </div>
                   </template>
-                  <p v-else class="whitespace-pre-wrap text-sm text-ink">{{ edit.lyrics }}</p>
+                  <div v-else class="text-sm text-ink [&_p+p]:mt-4 [&_ul]:list-disc [&_ol]:list-decimal [&_ul]:pl-5 [&_ol]:pl-5 [&_a]:underline" v-html="renderMarkdown(edit.lyrics)"></div>
                 </div>
               </div>
 
